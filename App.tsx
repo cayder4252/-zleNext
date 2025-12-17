@@ -169,6 +169,7 @@ function App() {
       setSearchQuery(''); // Clear search when browsing via menu
       setBrowseTitle(title);
       setIsBrowsing(true);
+      window.scrollTo(0, 0); // Scroll to top when browsing
       
       try {
           const results = await tmdb.getDiscoveryContent(endpoint, params);
@@ -429,7 +430,10 @@ function App() {
                         </button>
                     )}
                     {!searchQuery && !isBrowsing && (
-                        <button onClick={() => {}} className="text-purple hover:text-white text-sm font-semibold flex items-center">
+                        <button 
+                            onClick={() => handleBrowse('Global Trending', 'trending/tv/day', '')}
+                            className="text-purple hover:text-white text-sm font-semibold flex items-center"
+                        >
                             View All <ChevronRight className="w-4 h-4" />
                         </button>
                     )}
@@ -474,6 +478,7 @@ function App() {
                                     params={cat.params}
                                     onSeriesClick={handleSeriesClick}
                                     onAddToWatchlist={handleAddToWatchlist}
+                                    onViewAll={() => handleBrowse(cat.title, cat.endpoint, cat.params)}
                                 />
                             ))}
                         </div>

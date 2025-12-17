@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Series } from '../types';
 import { tmdb } from '../services/tmdb';
 import { DiziCard } from './DiziCard';
+import { ChevronRight } from 'lucide-react';
 
 interface CategoryRowProps {
     title: string;
@@ -9,9 +10,10 @@ interface CategoryRowProps {
     params: string;
     onSeriesClick: (id: string) => void;
     onAddToWatchlist: (id: string) => void;
+    onViewAll: () => void;
 }
 
-export const CategoryRow: React.FC<CategoryRowProps> = ({ title, endpoint, params, onSeriesClick, onAddToWatchlist }) => {
+export const CategoryRow: React.FC<CategoryRowProps> = ({ title, endpoint, params, onSeriesClick, onAddToWatchlist, onViewAll }) => {
     const [series, setSeries] = useState<Series[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -64,9 +66,18 @@ export const CategoryRow: React.FC<CategoryRowProps> = ({ title, endpoint, param
 
     return (
         <div className="space-y-4 mb-10">
-            <h2 className="text-xl font-bold text-white px-4 border-l-4 border-purple ml-4 flex items-center gap-2">
-                {title}
-            </h2>
+            <div className="flex justify-between items-center px-4">
+                <h2 className="text-xl font-bold text-white border-l-4 border-purple pl-3 flex items-center gap-2">
+                    {title}
+                </h2>
+                <button 
+                    onClick={onViewAll}
+                    className="text-xs text-purple font-bold hover:text-white flex items-center gap-1 transition-colors"
+                >
+                    View All <ChevronRight className="w-3 h-3" />
+                </button>
+            </div>
+            
             <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar snap-x">
                 {series.map(s => (
                     <div key={s.id} className="w-[160px] flex-shrink-0 snap-start">
