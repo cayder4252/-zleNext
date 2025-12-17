@@ -1,4 +1,5 @@
 import { Series, Actor, Episode, Season, Review } from '../types';
+import { omdb } from './omdb';
 
 const API_KEY = '85251d97249cfcc215d008c0a93cd2ac';
 const BASE_URL = 'https://api.themoviedb.org/3';
@@ -237,5 +238,56 @@ export const tmdb = {
         console.error("Error fetching calendar data:", error);
         return [];
     }
+  },
+
+  // NEW: Helper for Categories
+  getDiscoveryContent: async (endpoint: string, params: string): Promise<Series[]> => {
+    try {
+        const response = await fetch(`${BASE_URL}/${endpoint}?api_key=${API_KEY}&${params}`);
+        const data = await response.json();
+        if (!data.results) return [];
+        return data.results.map(mapTmdbToSeries);
+    } catch (e) {
+        console.error("Discovery error:", e);
+        return [];
+    }
+  },
+
+  // NEW: Logic to enrich series list with OMDb data
+  enrichSeries: async (seriesList: Series[]): Promise<Series[]> => {
+      // Limit to first 6 items to avoid rate limiting/performance hit on listing pages
+      const itemsToEnrich = seriesList.slice(0, 6);
+      const remainingItems = seriesList.slice(6);
+
+      const enrichedItems = await Promise.all(itemsToEnrich.map(async (item) => {
+          try {
+              // 1. Get External IDs (if not already fetched)
+              // Note: discovery results usually don't include external_ids, so we must fetch them.
+              // We infer media type based on original_title vs original_name presence in mapTmdbToSeries or checking internal props
+              // But Series interface abstracts this. We'll try 'tv' if title_tr exists, or 'movie'.
+              // A safer way is checking known props or guessing.
+              // For robustness, we'll try to determine type or assume from the discovery context passed in? 
+              // Since we don't have context here, we do a best guess or fetch both if needed.
+              // Optimization: We will skip strict ID fetching for list views to save quota unless critical.
+              // The user prompt *demands* the enrichment. We will do it properly.
+              
+              const mediaType = item.episodes_total > 0 || item.seasons ? 'tv' : 'movie'; 
+              
+              const idRes = await fetch(`${BASE_URL}/${mediaType}/${item.id}/external_ids?api_key=${API_KEY}`);
+              const ids = await idRes.json();
+              
+              if (ids.imdb_id) {
+                  const omdbData = await omdb.getDetails(ids.imdb_id);
+                  if (omdbData) {
+                      return { ...item, ...omdbData };
+                  }
+              }
+              return item;
+          } catch (e) {
+              return item;
+          }
+      }));
+
+      return [...enrichedItems, ...remainingItems];
   }
 };

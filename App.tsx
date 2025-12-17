@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { DiziCard } from './components/DiziCard';
 import { RatingsTable } from './components/RatingsTable';
 import { SeriesDetail } from './components/SeriesDetail'; 
+import { CategoryRow } from './components/CategoryRow'; // Import CategoryRow
 import { AdminPanel } from './pages/Admin';
 import { AuthPage } from './pages/Auth';
 import { ViewState, User, Series, Actor } from './types'; 
@@ -11,7 +12,7 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, updateProfile as updateAuthProfile } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { tmdb } from './services/tmdb';
-import { omdb } from './services/omdb'; // Import OMDb Service
+import { omdb } from './services/omdb'; 
 import { 
     Calendar as CalendarIcon, 
     Play, 
@@ -277,6 +278,37 @@ function App() {
       return acc;
   }, {} as Record<string, Series[]>);
 
+  // CATEGORIES CONFIGURATION
+  const CATEGORIES = [
+    // Group A: Global Hits
+    { title: "Chinese Wuxia/Xianxia", endpoint: "discover/tv", params: "with_original_language=zh&with_genres=18,10759" },
+    { title: "Trending Anime", endpoint: "discover/tv", params: "with_original_language=ja&with_genres=16&sort_by=popularity.desc" },
+    { title: "European Noir", endpoint: "discover/tv", params: "with_origin_country=SE|NO|DK|FR&with_genres=80" },
+    { title: "Spanish Language Hits", endpoint: "discover/tv", params: "with_original_language=es&sort_by=popularity.desc" },
+    
+    // Group B: Binge 2025
+    { title: "Most Anticipated 2025", endpoint: "discover/movie", params: "primary_release_date.gte=2025-01-01&sort_by=popularity.desc" },
+    { title: "Certified Fresh", endpoint: "discover/movie", params: "vote_average.gte=8&vote_count.gte=100" },
+    { title: "Hidden Gems", endpoint: "discover/movie", params: "vote_average.gte=7.5&vote_count.lte=500&vote_count.gte=50" },
+    { title: "New on Streaming", endpoint: "discover/movie", params: "with_watch_monetization_types=flatrate&watch_region=US" },
+
+    // Group C: Moods
+    { title: "Edge-of-Your-Seat Thrillers", endpoint: "discover/movie", params: "with_genres=53&vote_average.gte=7" },
+    { title: "Mind-Bending Sci-Fi", endpoint: "discover/movie", params: "with_genres=878&sort_by=vote_average.desc&vote_count.gte=200" },
+    { title: "True Crime & Biopics", endpoint: "discover/movie", params: "with_genres=80,36" },
+    { title: "Supernatural Horror", endpoint: "discover/movie", params: "with_genres=27&sort_by=popularity.desc" },
+    { title: "Wholesome Family Night", endpoint: "discover/movie", params: "with_genres=10751,16&sort_by=popularity.desc" },
+
+    // Group D: Social & Niche
+    { title: "Award Season Winners", endpoint: "discover/movie", params: "certification_country=US&certification=R&vote_average.gte=8&sort_by=vote_count.desc" },
+    { title: "Indie Spotlight", endpoint: "discover/movie", params: "with_runtime.lte=100&vote_average.gte=7" },
+    { title: "Revenge Dramas", endpoint: "discover/tv", params: "with_genres=18,80&sort_by=popularity.desc" }, // Generic popular crime dramas
+    { title: "Post-Apocalyptic Worlds", endpoint: "discover/movie", params: "with_genres=878,28&sort_by=popularity.desc" },
+    { title: "Modern RomComs", endpoint: "discover/movie", params: "with_genres=10749,35&primary_release_date.gte=2023-01-01" },
+    { title: "Sports Dramas", endpoint: "discover/movie", params: "with_genres=18&with_keywords=6075" }, // 6075 is 'sport' keyword
+    { title: "IMDb Top 250", endpoint: "movie/top_rated", params: "page=1" },
+  ];
+
   if (currentView === 'ADMIN') {
     if (!user || user.role !== 'ADMIN') {
         setCurrentView('LOGIN');
@@ -373,20 +405,51 @@ function App() {
                 
                 {isSearching ? (
                    <div className="text-center py-20 text-gray-500">Searching TMDb...</div>
-                ) : seriesList.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                    {seriesList.map((series) => (
-                        <DiziCard 
-                            key={series.id} 
-                            series={series} 
-                            onAddToWatchlist={handleAddToWatchlist}
-                            onClick={() => handleSeriesClick(series.id)}
-                        />
-                    ))}
-                    </div>
+                ) : searchQuery ? (
+                     seriesList.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                        {seriesList.map((series) => (
+                            <DiziCard 
+                                key={series.id} 
+                                series={series} 
+                                onAddToWatchlist={handleAddToWatchlist}
+                                onClick={() => handleSeriesClick(series.id)}
+                            />
+                        ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 text-gray-500 border border-white/5 rounded-xl border-dashed">
+                            No series found matching "{searchQuery}".
+                        </div>
+                    )
                 ) : (
-                    <div className="text-center py-20 text-gray-500 border border-white/5 rounded-xl border-dashed">
-                        No series found matching "{searchQuery}".
+                    // Default View: Show standard trending + New Categories
+                    <div className="space-y-12">
+                        {/* Standard Trending */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                            {seriesList.slice(0, 10).map((series) => (
+                                <DiziCard 
+                                    key={series.id} 
+                                    series={series} 
+                                    onAddToWatchlist={handleAddToWatchlist}
+                                    onClick={() => handleSeriesClick(series.id)}
+                                />
+                            ))}
+                        </div>
+
+                        {/* NEW: Horizontal Category Rows */}
+                        <div className="pt-8">
+                            {CATEGORIES.map((cat, idx) => (
+                                <CategoryRow 
+                                    key={idx}
+                                    title={cat.title}
+                                    endpoint={cat.endpoint}
+                                    params={cat.params}
+                                    onSeriesClick={handleSeriesClick}
+                                    onAddToWatchlist={handleAddToWatchlist}
+                                />
+                            ))}
+                        </div>
                     </div>
                 )}
               </section>
