@@ -11,6 +11,19 @@ export interface Series {
   episodes_total: number;
   episodes_aired: number;
   is_featured?: boolean;
+  
+  // Detailed Fields
+  release_year?: number;
+  genres?: string[];
+  schedule?: string;
+  runtime?: string;
+  trailer_url?: string;
+  social_links?: {
+    instagram?: string;
+    youtube?: string;
+    facebook?: string;
+    official_site?: string;
+  };
 }
 
 export interface Actor {
@@ -52,4 +65,4 @@ export interface User {
   watchlist?: string[];
 }
 
-export type ViewState = 'HOME' | 'RATINGS' | 'CALENDAR' | 'PROFILE' | 'ADMIN' | 'LOGIN' | 'REGISTER';
+export type ViewState = 'HOME' | 'RATINGS' | 'CALENDAR' | 'PROFILE' | 'ADMIN' | 'LOGIN' | 'REGISTER' | 'SERIES_DETAIL';

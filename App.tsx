@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { DiziCard } from './components/DiziCard';
 import { RatingsTable } from './components/RatingsTable';
+import { SeriesDetail } from './components/SeriesDetail'; // Import new component
 import { AdminPanel } from './pages/Admin';
 import { AuthPage } from './pages/Auth';
 import { ViewState, User, Series } from './types';
@@ -25,6 +26,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null); // Track selected series
   const [user, setUser] = useState<User | null>(null);
   
   // Real-time user profile data (bio, location, watchlist from Firestore)
@@ -174,6 +176,12 @@ function App() {
       }
   };
 
+  const handleSeriesClick = (id: string) => {
+      setSelectedSeriesId(id);
+      setCurrentView('SERIES_DETAIL');
+      window.scrollTo(0, 0); // Scroll to top
+  };
+
   // Filter Series based on Search Query
   const allSeries = seriesList.length > 0 ? seriesList : MOCK_SERIES;
   const filteredSeries = allSeries.filter(s => 
@@ -249,7 +257,10 @@ function App() {
                         {featuredShow.synopsis}
                     </p>
                     <div className="flex gap-4 pt-4">
-                        <button className="bg-purple hover:bg-purple-light text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 transition-all transform hover:scale-105">
+                        <button 
+                            onClick={() => handleSeriesClick(featuredShow.id)}
+                            className="bg-purple hover:bg-purple-light text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 transition-all transform hover:scale-105"
+                        >
                             <Play className="w-5 h-5 fill-current" />
                             Start Watching
                         </button>
@@ -287,6 +298,7 @@ function App() {
                             key={series.id} 
                             series={series} 
                             onAddToWatchlist={handleAddToWatchlist}
+                            onClick={() => handleSeriesClick(series.id)}
                         />
                     ))}
                     </div>
@@ -329,6 +341,18 @@ function App() {
               )}
             </div>
           </div>
+        );
+
+      case 'SERIES_DETAIL':
+        const series = allSeries.find(s => s.id === selectedSeriesId);
+        if (!series) return <div className="p-8 text-center text-white">Series not found</div>;
+        
+        return (
+            <SeriesDetail 
+                series={series} 
+                onAddToWatchlist={handleAddToWatchlist}
+                isInWatchlist={watchlist.includes(series.id)}
+            />
         );
 
       case 'RATINGS':

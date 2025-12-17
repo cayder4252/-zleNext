@@ -5,11 +5,15 @@ import { Series } from '../types';
 interface DiziCardProps {
   series: Series;
   onAddToWatchlist: (id: string) => void;
+  onClick?: () => void;
 }
 
-export const DiziCard: React.FC<DiziCardProps> = ({ series, onAddToWatchlist }) => {
+export const DiziCard: React.FC<DiziCardProps> = ({ series, onAddToWatchlist, onClick }) => {
   return (
-    <div className="group relative w-full aspect-[2/3] rounded-lg overflow-hidden bg-navy-800 shadow-lg cursor-pointer transition-transform duration-300 hover:scale-[1.02] hover:shadow-purple/20 hover:shadow-2xl">
+    <div 
+      onClick={onClick}
+      className="group relative w-full aspect-[2/3] rounded-lg overflow-hidden bg-navy-800 shadow-lg cursor-pointer transition-transform duration-300 hover:scale-[1.02] hover:shadow-purple/20 hover:shadow-2xl"
+    >
       {/* Background Image */}
       <img 
         src={series.poster_url} 
