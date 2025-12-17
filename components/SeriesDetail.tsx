@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Series, Actor, Episode } from '../types';
 import { tmdb } from '../services/tmdb';
+import { StreamingAvailability } from './StreamingAvailability';
 import { 
   Play, 
   Plus, 
@@ -486,19 +487,8 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                        </div>
                   </div>
 
-                  {/* Where to Watch */}
-                  <div className="bg-white rounded-lg p-6 shadow-sm">
-                      <h3 className="text-navy-900 font-bold border-l-4 border-red-600 pl-2 mb-4 uppercase">Where to Watch</h3>
-                      <div className="flex items-center gap-4">
-                          <div className="w-12 h-8 bg-red-600 rounded flex items-center justify-center text-white">
-                              <Youtube className="w-5 h-5" fill="currentColor" />
-                          </div>
-                          <div>
-                              <div className="font-bold text-navy-900 text-sm">YouTube</div>
-                              <div className="text-xs text-gray-500">Free (Official Channel)</div>
-                          </div>
-                      </div>
-                  </div>
+                  {/* Where to Watch (Streaming Availability) */}
+                  <StreamingAvailability imdbId={series.imdb_id} />
 
               </div>
           </div>

@@ -6,11 +6,23 @@ const BASE_URL = 'https://www.omdbapi.com';
 export const omdb = {
   getDetails: async (imdbId: string): Promise<Partial<Series> | null> => {
     try {
-      const response = await fetch(`${BASE_URL}/?apikey=${API_KEY}&i=${imdbId}`);
+      const controller = new AbortController();
+      // 2s timeout to prevent UI blocking on slow/failed OMDb requests
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+      const response = await fetch(`${BASE_URL}/?apikey=${API_KEY}&i=${imdbId}`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+          return null;
+      }
+
       const data = await response.json();
       
       if (data.Response === 'False') {
-          console.warn('OMDb Error:', data.Error);
           return null;
       }
 
@@ -22,8 +34,11 @@ export const omdb = {
         imdb_rating: data.imdbRating !== 'N/A' ? data.imdbRating : undefined,
         imdb_votes: data.imdbVotes !== 'N/A' ? data.imdbVotes : undefined,
       };
-    } catch (error) {
-      console.error("OMDb fetch error:", error);
+    } catch (error: any) {
+      // Gracefully handle network errors or blocking without spamming console errors
+      if (error.name !== 'AbortError') {
+          console.warn(`OMDb enrichment skipped for ${imdbId}: ${error.message}`);
+      }
       return null;
     }
   }
