@@ -9,7 +9,7 @@ import { ViewState, User, Series } from './types';
 import { MOCK_SERIES, MOCK_RATINGS } from './constants';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, updateProfile as updateAuthProfile } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { 
     Calendar as CalendarIcon, 
     Play, 
@@ -153,12 +153,16 @@ function App() {
       try {
           // Update Firestore
           const userRef = doc(db, 'users', user.id);
-          await updateDoc(userRef, {
+          
+          // Use setDoc with merge: true to handle both update and create scenarios
+          // This fixes issues where the user document might not exist yet
+          await setDoc(userRef, {
               name: profileForm.name,
               avatar_url: profileForm.avatar_url,
               location: profileForm.location,
-              bio: profileForm.bio
-          });
+              bio: profileForm.bio,
+              updatedAt: new Date().toISOString()
+          }, { merge: true });
           
           // Update Auth Profile (Display Name / Photo)
           if (auth.currentUser) {
@@ -166,13 +170,15 @@ function App() {
                   displayName: profileForm.name,
                   photoURL: profileForm.avatar_url
               });
+              // Optimistically update local user state
+              setUser(prev => prev ? ({ ...prev, name: profileForm.name, avatar_url: profileForm.avatar_url }) : null);
           }
 
           setIsEditingProfile(false);
           alert("Profile updated successfully!");
-      } catch (error) {
+      } catch (error: any) {
           console.error("Error updating profile:", error);
-          alert("Failed to update profile.");
+          alert("Failed to update profile: " + error.message);
       }
   };
 
