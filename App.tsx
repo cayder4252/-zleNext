@@ -78,13 +78,8 @@ function App() {
         if (doc.exists()) {
             const data = doc.data() as User;
             setUserProfile(data);
-            // Sync local form state when data loads
-            setProfileForm({
-                name: data.name || user.name,
-                avatar_url: data.avatar_url || '',
-                location: data.location || '',
-                bio: data.bio || ''
-            });
+            // NOTE: We do NOT setProfileForm here anymore to avoid race conditions/overwrites while editing.
+            // Form state is initialized in handleOpenEditProfile instead.
         }
     });
     return () => unsub;
@@ -146,6 +141,17 @@ function App() {
     }
   };
 
+  // Explicitly initialize form state when opening the modal
+  const handleOpenEditProfile = () => {
+    setProfileForm({
+        name: userProfile?.name || user?.name || '',
+        avatar_url: userProfile?.avatar_url || user?.avatar_url || '',
+        location: userProfile?.location || '',
+        bio: userProfile?.bio || ''
+    });
+    setIsEditingProfile(true);
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user) return;
@@ -155,7 +161,6 @@ function App() {
           const userRef = doc(db, 'users', user.id);
           
           // Use setDoc with merge: true to handle both update and create scenarios
-          // This fixes issues where the user document might not exist yet
           await setDoc(userRef, {
               name: profileForm.name,
               avatar_url: profileForm.avatar_url,
@@ -430,7 +435,7 @@ function App() {
                     </div>
                     
                     <button 
-                        onClick={() => setIsEditingProfile(true)}
+                        onClick={handleOpenEditProfile}
                         className="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                     >
                         <Edit2 className="w-4 h-4" /> Edit Profile
