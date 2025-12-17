@@ -186,7 +186,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 <div className="w-8 h-8 bg-purple rounded-lg flex items-center justify-center group-hover:bg-purple-light transition-colors shadow-lg shadow-purple/20">
                   <PlayCircle className="text-white w-5 h-5" fill="currentColor" />
                 </div>
-                <span className="text-xl font-bold tracking-tight text-white group-hover:text-gray-100 transition-colors hidden sm:block">
+                <span className="text-xl font-bold tracking-tight text-white group-hover:text-gray-100 transition-colors block">
                   İZLE<span className="text-purple group-hover:text-purple-light">NEXT</span>
                 </span>
               </div>
