@@ -8,11 +8,20 @@ interface LayoutProps {
   onChangeView: (view: ViewState) => void;
   user: User | null;
   onLogout: () => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, user, onLogout }) => {
+export const Layout: React.FC<LayoutProps> = ({ 
+  children, 
+  currentView, 
+  onChangeView, 
+  user, 
+  onLogout,
+  searchQuery,
+  setSearchQuery
+}) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const navItems: { label: string; view: ViewState }[] = [
     { label: 'Home', view: 'HOME' },
@@ -78,9 +87,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
                   onClick={() => onChangeView('PROFILE')}
                   className={`flex items-center gap-2 px-2 py-1 rounded-full border border-transparent hover:border-purple/50 transition-all ${currentView === 'PROFILE' ? 'border-purple text-purple' : 'text-gray-300'}`}
                 >
-                  <div className="w-6 h-6 bg-purple rounded-full flex items-center justify-center text-[10px] font-bold text-white">
-                     {user.name.charAt(0).toUpperCase()}
-                  </div>
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt="Avatar" className="w-6 h-6 rounded-full object-cover border border-purple" />
+                  ) : (
+                    <div className="w-6 h-6 bg-purple rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+                      {user.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <span className="text-xs font-semibold max-w-[80px] truncate">{user.name}</span>
                 </button>
 
@@ -131,6 +144,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
                   type="text"
                   placeholder="Search..."
                   className="w-full bg-navy-900 border border-navy-700 text-white px-4 py-2 rounded-lg"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
                  <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
                </div>

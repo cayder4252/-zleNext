@@ -47,6 +47,9 @@ export interface User {
   role: 'ADMIN' | 'USER';
   avatar_url?: string;
   createdAt?: string;
+  bio?: string;
+  location?: string;
+  watchlist?: string[];
 }
 
 export type ViewState = 'HOME' | 'RATINGS' | 'CALENDAR' | 'PROFILE' | 'ADMIN' | 'LOGIN' | 'REGISTER';

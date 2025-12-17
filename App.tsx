@@ -7,8 +7,8 @@ import { AuthPage } from './pages/Auth';
 import { ViewState, User, Series } from './types';
 import { MOCK_SERIES, MOCK_RATINGS } from './constants';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged, signOut, updateProfile as updateAuthProfile } from 'firebase/auth';
+import { collection, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { 
     Calendar as CalendarIcon, 
     Play, 
@@ -16,40 +16,77 @@ import {
     BarChart2, 
     Clock, 
     ChevronRight,
-    PlayCircle
+    PlayCircle,
+    Edit2,
+    Save,
+    X
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
-  const [watchlist, setWatchlist] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
   
+  // Real-time user profile data (bio, location, watchlist from Firestore)
+  const [userProfile, setUserProfile] = useState<User | null>(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Data State
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [loadingSeries, setLoadingSeries] = useState(true);
+
+  // Profile Form State
+  const [profileForm, setProfileForm] = useState({
+      name: '',
+      avatar_url: '',
+      location: '',
+      bio: ''
+  });
 
   // Monitor Firebase Auth State
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // Determine role based on email pattern or existing custom claim if available
-        // For this demo, we maintain the simple check
         const role = firebaseUser.email?.toLowerCase().includes('admin') ? 'ADMIN' : 'USER';
-        
-        setUser({
+        const userData: User = {
           id: firebaseUser.uid,
           name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
           email: firebaseUser.email || '',
-          role: role
-        });
+          role: role,
+          avatar_url: firebaseUser.photoURL || undefined
+        };
+        setUser(userData);
       } else {
         setUser(null);
+        setUserProfile(null);
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Monitor Real-time User Data (Firestore)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const unsub = onSnapshot(doc(db, 'users', user.id), (doc) => {
+        if (doc.exists()) {
+            const data = doc.data() as User;
+            setUserProfile(data);
+            // Sync local form state when data loads
+            setProfileForm({
+                name: data.name || user.name,
+                avatar_url: data.avatar_url || '',
+                location: data.location || '',
+                bio: data.bio || ''
+            });
+        }
+    });
+    return () => unsub;
+  }, [user?.id]);
 
   // Fetch Series Data from Firestore
   useEffect(() => {
@@ -62,7 +99,6 @@ function App() {
         setLoadingSeries(false);
     }, (error) => {
         console.error("Error fetching series:", error);
-        // Fallback to mocks if DB is empty or fails
         setSeriesList(MOCK_SERIES);
         setLoadingSeries(false);
     });
@@ -70,8 +106,6 @@ function App() {
   }, []);
 
   const handleLogin = (email: string, name: string, role: 'ADMIN' | 'USER') => {
-    // This function is now mainly a callback to handle navigation after auth success
-    // The actual user state is set by the useEffect hook above
     if (role === 'ADMIN') {
       setCurrentView('ADMIN');
     } else {
@@ -88,32 +122,79 @@ function App() {
     }
   };
 
-  const handleAddToWatchlist = (id: string) => {
+  // Add/Remove from Watchlist via Firestore
+  const handleAddToWatchlist = async (id: string) => {
     if (!user) {
-        // If not logged in, prompt to login
         setCurrentView('LOGIN');
         return;
     }
-    if (!watchlist.includes(id)) {
-      setWatchlist([...watchlist, id]);
-      alert('Added to watchlist!');
+    const currentWatchlist = userProfile?.watchlist || [];
+    const isAdded = currentWatchlist.includes(id);
+    const userRef = doc(db, 'users', user.id);
+
+    try {
+        if (isAdded) {
+            await updateDoc(userRef, { watchlist: arrayRemove(id) });
+        } else {
+            await updateDoc(userRef, { watchlist: arrayUnion(id) });
+            alert('Added to watchlist!');
+        }
+    } catch (error) {
+        console.error("Error updating watchlist", error);
     }
   };
 
-  const displaySeries = seriesList.length > 0 ? seriesList : MOCK_SERIES;
-  // Get featured show (either flagged as featured or just the first one)
-  const featuredShow = displaySeries.find(s => s.is_featured) || displaySeries[0];
+  const handleSaveProfile = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) return;
 
-  // Dedicated Route Handling
+      try {
+          // Update Firestore
+          const userRef = doc(db, 'users', user.id);
+          await updateDoc(userRef, {
+              name: profileForm.name,
+              avatar_url: profileForm.avatar_url,
+              location: profileForm.location,
+              bio: profileForm.bio
+          });
+          
+          // Update Auth Profile (Display Name / Photo)
+          if (auth.currentUser) {
+              await updateAuthProfile(auth.currentUser, {
+                  displayName: profileForm.name,
+                  photoURL: profileForm.avatar_url
+              });
+          }
+
+          setIsEditingProfile(false);
+          alert("Profile updated successfully!");
+      } catch (error) {
+          console.error("Error updating profile:", error);
+          alert("Failed to update profile.");
+      }
+  };
+
+  // Filter Series based on Search Query
+  const allSeries = seriesList.length > 0 ? seriesList : MOCK_SERIES;
+  const filteredSeries = allSeries.filter(s => 
+      s.title_tr.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      s.title_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.network.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const featuredShow = filteredSeries.find(s => s.is_featured) || filteredSeries[0];
+  // Calculate Stats based on Watchlist
+  const watchlist = userProfile?.watchlist || [];
+  const watchedSeries = allSeries.filter(s => watchlist.includes(s.id));
+  const totalEpisodes = watchedSeries.reduce((acc, curr) => acc + (curr.episodes_aired || 0), 0);
+  const totalHours = Math.round(totalEpisodes * 2.2); // Avg 2.2 hours per episode
 
   // 1. Admin Logic
   if (currentView === 'ADMIN') {
-    // Basic protection: if not logged in or not admin, kick them out
     if (!user || user.role !== 'ADMIN') {
         setCurrentView('LOGIN');
         return null;
     }
-
     return (
         <div className="relative">
              <button 
@@ -127,7 +208,7 @@ function App() {
     );
   }
 
-  // 2. Auth Page Logic (Standalone Layout)
+  // 2. Auth Logic
   if (currentView === 'LOGIN' || currentView === 'REGISTER') {
     return (
         <AuthPage 
@@ -143,8 +224,8 @@ function App() {
       case 'HOME':
         return (
           <div className="animate-in fade-in duration-500">
-            {/* Hero Slider Section */}
-            {featuredShow && (
+            {/* Show Featured only if not searching */}
+            {!searchQuery && featuredShow && (
               <div className="relative h-[500px] md:h-[600px] w-full overflow-hidden">
                 <div className="absolute inset-0">
                     <img 
@@ -176,7 +257,7 @@ function App() {
                             onClick={() => handleAddToWatchlist(featuredShow.id)}
                             className="bg-white/10 hover:bg-white/20 backdrop-blur text-white px-8 py-3 rounded-lg font-bold transition-all"
                         >
-                            + My List
+                           {watchlist.includes(featuredShow.id) ? '- My List' : '+ My List'}
                         </button>
                     </div>
                   </div>
@@ -185,56 +266,67 @@ function App() {
             )}
 
             <div className="container mx-auto px-4 py-12 space-y-16">
-              {/* Featured Section */}
+              {/* Featured / Search Results */}
               <section>
                 <div className="flex justify-between items-end mb-6">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <div className="w-1 h-6 bg-purple rounded-full"></div>
-                        Featured Series
+                        {searchQuery ? `Search Results for "${searchQuery}"` : 'Featured Series'}
                     </h2>
-                    <a href="#" className="text-purple hover:text-white text-sm font-semibold flex items-center">
-                        View All <ChevronRight className="w-4 h-4" />
-                    </a>
+                    {!searchQuery && (
+                        <a href="#" className="text-purple hover:text-white text-sm font-semibold flex items-center">
+                            View All <ChevronRight className="w-4 h-4" />
+                        </a>
+                    )}
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                  {displaySeries.map((series) => (
-                    <DiziCard 
-                        key={series.id} 
-                        series={series} 
-                        onAddToWatchlist={handleAddToWatchlist}
-                    />
-                  ))}
-                </div>
+                
+                {filteredSeries.length > 0 ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                    {filteredSeries.map((series) => (
+                        <DiziCard 
+                            key={series.id} 
+                            series={series} 
+                            onAddToWatchlist={handleAddToWatchlist}
+                        />
+                    ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 text-gray-500 border border-white/5 rounded-xl border-dashed">
+                        No series found matching "{searchQuery}".
+                    </div>
+                )}
               </section>
 
-              {/* Ratings Preview Section */}
-              <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                    <RatingsTable ratings={MOCK_RATINGS} series={displaySeries} />
-                </div>
-                <div className="bg-navy-800 rounded-xl p-6 border border-white/5">
-                    <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                        <TrendingUp className="text-purple" /> Market Share Analysis
-                    </h3>
-                    <div className="h-[250px] w-full">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={MOCK_RATINGS}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                                <XAxis dataKey="category" stroke="#9ca3af" fontSize={12} />
-                                <YAxis stroke="#9ca3af" fontSize={12} />
-                                <Tooltip 
-                                    contentStyle={{ backgroundColor: '#1F1F1F', border: '1px solid #333' }}
-                                    itemStyle={{ color: '#fff' }}
-                                />
-                                <Bar dataKey="rating" fill="#7B2CBF" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+              {/* Ratings Preview Section (Only show if not searching) */}
+              {!searchQuery && (
+                  <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2">
+                        <RatingsTable ratings={MOCK_RATINGS} series={allSeries} />
                     </div>
-                    <p className="text-xs text-gray-400 mt-4 text-center">
-                        *Data based on Total audience share from yesterday.
-                    </p>
-                </div>
-              </section>
+                    <div className="bg-navy-800 rounded-xl p-6 border border-white/5">
+                        <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                            <TrendingUp className="text-purple" /> Market Share Analysis
+                        </h3>
+                        <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={MOCK_RATINGS}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                                    <XAxis dataKey="category" stroke="#9ca3af" fontSize={12} />
+                                    <YAxis stroke="#9ca3af" fontSize={12} />
+                                    <Tooltip 
+                                        contentStyle={{ backgroundColor: '#1F1F1F', border: '1px solid #333' }}
+                                        itemStyle={{ color: '#fff' }}
+                                    />
+                                    <Bar dataKey="rating" fill="#7B2CBF" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 text-center">
+                            *Data based on Total audience share from yesterday.
+                        </p>
+                    </div>
+                  </section>
+              )}
             </div>
           </div>
         );
@@ -243,7 +335,7 @@ function App() {
         return (
           <div className="container mx-auto px-4 py-12">
             <h2 className="text-3xl font-bold mb-8 text-white">Detailed Ratings</h2>
-            <RatingsTable ratings={MOCK_RATINGS} series={displaySeries} />
+            <RatingsTable ratings={MOCK_RATINGS} series={allSeries} />
           </div>
         );
 
@@ -259,8 +351,6 @@ function App() {
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
                         <div key={day} className="bg-navy-800 rounded-lg p-4 min-h-[200px] border border-white/5 relative">
                             <span className="text-gray-500 font-bold uppercase text-xs">{day}</span>
-                            
-                            {/* Mock logic to place cards - mapped to real data eventually */}
                             {i === 4 && (
                                 <div className="mt-4 bg-navy-700 p-2 rounded border-l-2 border-purple">
                                     <div className="text-xs text-purple font-bold">20:00</div>
@@ -275,36 +365,45 @@ function App() {
         );
 
       case 'PROFILE':
-        // Protected Route check
         if (!user) {
              setCurrentView('LOGIN');
              return null;
         }
 
         return (
-          <div className="container mx-auto px-4 py-12">
+          <div className="container mx-auto px-4 py-12 relative">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 {/* Profile Sidebar */}
                 <div className="bg-navy-800 p-6 rounded-xl border border-white/5 text-center h-fit">
-                    <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-xl text-white">
-                        {user.name.charAt(0).toUpperCase()}
+                    <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-xl text-white overflow-hidden relative group">
+                        {userProfile?.avatar_url ? (
+                            <img src={userProfile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                            user.name.charAt(0).toUpperCase()
+                        )}
                     </div>
-                    <h2 className="text-xl font-bold text-white">{user.name}</h2>
-                    <p className="text-gray-400 text-sm mb-6">Series Addict • Istanbul</p>
+                    
+                    <h2 className="text-xl font-bold text-white">{userProfile?.name || user.name}</h2>
+                    <p className="text-gray-400 text-sm mb-6">
+                        {userProfile?.bio || 'Series Addict'} • {userProfile?.location || 'Istanbul'}
+                    </p>
                     
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-navy-900 p-3 rounded-lg">
-                            <div className="text-xl font-bold text-white">142</div>
+                            <div className="text-xl font-bold text-white">{totalHours}</div>
                             <div className="text-[10px] text-gray-500 uppercase">Hours</div>
                         </div>
                          <div className="bg-navy-900 p-3 rounded-lg">
-                            <div className="text-xl font-bold text-white">12</div>
+                            <div className="text-xl font-bold text-white">{watchlist.length}</div>
                             <div className="text-[10px] text-gray-500 uppercase">Series</div>
                         </div>
                     </div>
                     
-                    <button className="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg text-sm font-semibold transition-colors">
-                        Edit Profile
+                    <button 
+                        onClick={() => setIsEditingProfile(true)}
+                        className="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Edit2 className="w-4 h-4" /> Edit Profile
                     </button>
                 </div>
 
@@ -315,17 +414,17 @@ function App() {
                         <div className="bg-gradient-to-br from-purple-900 to-navy-800 p-6 rounded-xl border border-white/10 relative overflow-hidden">
                             <BarChart2 className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/5" />
                             <h3 className="text-gray-300 text-sm font-medium">Favorite Genre</h3>
-                            <p className="text-2xl font-bold text-white mt-1">Drama & Romance</p>
+                            <p className="text-2xl font-bold text-white mt-1">Drama</p>
                         </div>
                         <div className="bg-navy-800 p-6 rounded-xl border border-white/5 relative overflow-hidden">
                              <Clock className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/5" />
                             <h3 className="text-gray-300 text-sm font-medium">Time Watched</h3>
-                            <p className="text-2xl font-bold text-white mt-1">142h 30m</p>
+                            <p className="text-2xl font-bold text-white mt-1">{totalHours}h 30m</p>
                         </div>
                         <div className="bg-navy-800 p-6 rounded-xl border border-white/5 relative overflow-hidden">
                              <PlayCircle className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/5" />
                             <h3 className="text-gray-300 text-sm font-medium">Episodes</h3>
-                            <p className="text-2xl font-bold text-white mt-1">345</p>
+                            <p className="text-2xl font-bold text-white mt-1">{totalEpisodes}</p>
                         </div>
                     </div>
 
@@ -344,14 +443,78 @@ function App() {
                              </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {displaySeries.filter(s => watchlist.includes(s.id)).map(series => (
-                                    <DiziCard key={series.id} series={series} onAddToWatchlist={() => {}} />
+                                {allSeries.filter(s => watchlist.includes(s.id)).map(series => (
+                                    <DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} />
                                 ))}
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* EDIT PROFILE MODAL */}
+            {isEditingProfile && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-navy-800 border border-white/10 rounded-xl shadow-2xl w-full max-w-md">
+                        <div className="flex justify-between items-center p-6 border-b border-white/10">
+                            <h3 className="text-xl font-bold text-white">Edit Profile</h3>
+                            <button onClick={() => setIsEditingProfile(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+                        </div>
+                        <form onSubmit={handleSaveProfile} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Display Name</label>
+                                <input 
+                                    type="text" 
+                                    value={profileForm.name} 
+                                    onChange={e => setProfileForm({...profileForm, name: e.target.value})}
+                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Avatar URL</label>
+                                <input 
+                                    type="url" 
+                                    value={profileForm.avatar_url} 
+                                    onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})}
+                                    placeholder="https://..."
+                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
+                                />
+                                {profileForm.avatar_url && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <img src={profileForm.avatar_url} className="w-10 h-10 rounded-full object-cover border border-white/20" alt="Preview" />
+                                        <span className="text-xs text-green-500">Preview</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Location</label>
+                                <input 
+                                    type="text" 
+                                    value={profileForm.location} 
+                                    onChange={e => setProfileForm({...profileForm, location: e.target.value})}
+                                    placeholder="e.g. Istanbul"
+                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Bio / Tagline</label>
+                                <textarea 
+                                    rows={2}
+                                    value={profileForm.bio} 
+                                    onChange={e => setProfileForm({...profileForm, bio: e.target.value})}
+                                    placeholder="Tell us about your favorite shows..."
+                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
+                                />
+                            </div>
+                            <div className="pt-4 flex justify-end">
+                                <button type="submit" className="bg-purple hover:bg-purple-light text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2">
+                                    <Save className="w-4 h-4" /> Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
           </div>
         );
 
@@ -364,8 +527,10 @@ function App() {
     <Layout 
         currentView={currentView} 
         onChangeView={setCurrentView} 
-        user={user}
+        user={userProfile || user}
         onLogout={handleLogout}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
     >
       {renderContent()}
     </Layout>

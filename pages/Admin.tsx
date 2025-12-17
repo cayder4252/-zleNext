@@ -17,7 +17,8 @@ import {
   Save,
   Clock,
   ExternalLink,
-  Database
+  Database,
+  Eye
 } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, onSnapshot, query, where, addDoc, doc, updateDoc, deleteDoc, orderBy, limit, setDoc } from 'firebase/firestore';
@@ -354,17 +355,6 @@ export const AdminPanel: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h2 className="font-bold mb-4">Quick Actions</h2>
-                <div className="flex gap-4">
-                     <button onClick={() => { setActiveTab('SHOWS'); handleOpenSeriesModal(); }} className="flex items-center gap-2 px-4 py-2 bg-purple text-white rounded-lg hover:bg-purple-dark shadow-sm">
-                        <Plus className="w-4 h-4" /> Add New Series
-                     </button>
-                     <button onClick={() => setActiveTab('MEDIA')} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
-                        <Upload className="w-4 h-4" /> Upload Banners
-                     </button>
-                </div>
-            </div>
           </div>
         )}
 
@@ -412,9 +402,6 @@ export const AdminPanel: React.FC = () => {
                                 </td>
                             </tr>
                         ))}
-                        {seriesList.length === 0 && (
-                            <tr><td colSpan={5} className="p-8 text-center text-gray-400">Database is empty. Add a series or seed data from Dashboard.</td></tr>
-                        )}
                     </tbody>
                 </table>
             </div>
@@ -456,7 +443,6 @@ export const AdminPanel: React.FC = () => {
             <div className="space-y-6">
                  <h1 className="text-2xl font-bold text-gray-900">Rating Input Tool</h1>
                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                     {/* Input Form */}
                      <div className="lg:col-span-1 bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-fit">
                         <h2 className="font-bold text-lg mb-4">Add New Rating</h2>
                         <form onSubmit={handleSaveRating} className="space-y-4">
@@ -502,7 +488,6 @@ export const AdminPanel: React.FC = () => {
                         </form>
                      </div>
 
-                     {/* Recent Ratings List */}
                      <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         <div className="p-4 border-b border-gray-200">
                              <h2 className="font-bold text-lg">Recent Entries</h2>
@@ -561,8 +546,8 @@ export const AdminPanel: React.FC = () => {
                         {usersList.map(u => (
                             <tr key={u.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 font-medium flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-purple/10 text-purple flex items-center justify-center font-bold text-xs">
-                                        {u.name.charAt(0).toUpperCase()}
+                                    <div className="w-8 h-8 rounded-full bg-purple/10 text-purple flex items-center justify-center font-bold text-xs overflow-hidden">
+                                        {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : u.name.charAt(0).toUpperCase()}
                                     </div>
                                     {u.name || 'Anonymous'}
                                 </td>
@@ -661,8 +646,9 @@ export const AdminPanel: React.FC = () => {
                           </div>
                       </div>
 
+                      {/* IMAGE URLS WITH PREVIEW */}
                       <div className="grid grid-cols-2 gap-4">
-                          <div>
+                          <div className="space-y-2">
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex justify-between">
                                   Poster URL
                                   {modalUploading === 'poster_url' && <span className="text-purple text-[10px] animate-pulse">Uploading...</span>}
@@ -676,8 +662,17 @@ export const AdminPanel: React.FC = () => {
                                     </label>
                                 </div>
                               </div>
+                              {/* Preview Box */}
+                              <div className="w-full h-32 bg-gray-100 rounded border border-gray-200 flex items-center justify-center overflow-hidden">
+                                  {editingSeries.poster_url ? (
+                                      <img src={editingSeries.poster_url} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                                  ) : (
+                                      <span className="text-xs text-gray-400">No Image</span>
+                                  )}
+                              </div>
                           </div>
-                          <div>
+
+                          <div className="space-y-2">
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex justify-between">
                                   Banner URL
                                   {modalUploading === 'banner_url' && <span className="text-purple text-[10px] animate-pulse">Uploading...</span>}
@@ -691,9 +686,17 @@ export const AdminPanel: React.FC = () => {
                                     </label>
                                 </div>
                               </div>
+                              {/* Preview Box */}
+                              <div className="w-full h-32 bg-gray-100 rounded border border-gray-200 flex items-center justify-center overflow-hidden">
+                                  {editingSeries.banner_url ? (
+                                      <img src={editingSeries.banner_url} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                                  ) : (
+                                      <span className="text-xs text-gray-400">No Image</span>
+                                  )}
+                              </div>
                           </div>
                       </div>
-                      <div className="text-xs text-gray-400">Click the upload icon to select an image from your device.</div>
+                      <div className="text-xs text-gray-400">Paste a URL to preview instantly or click upload icon.</div>
 
                       <div className="grid grid-cols-3 gap-4">
                            <div>
