@@ -4,10 +4,11 @@ import { DiziCard } from './components/DiziCard';
 import { RatingsTable } from './components/RatingsTable';
 import { AdminPanel } from './pages/Admin';
 import { AuthPage } from './pages/Auth';
-import { ViewState, User } from './types';
+import { ViewState, User, Series } from './types';
 import { MOCK_SERIES, MOCK_RATINGS } from './constants';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { 
     Calendar as CalendarIcon, 
     Play, 
@@ -23,6 +24,10 @@ function App() {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  
+  // Data State
+  const [seriesList, setSeriesList] = useState<Series[]>([]);
+  const [loadingSeries, setLoadingSeries] = useState(true);
 
   // Monitor Firebase Auth State
   useEffect(() => {
@@ -43,6 +48,24 @@ function App() {
       }
     });
 
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch Series Data from Firestore
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'series'), (snapshot) => {
+        const list = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        })) as Series[];
+        setSeriesList(list);
+        setLoadingSeries(false);
+    }, (error) => {
+        console.error("Error fetching series:", error);
+        // Fallback to mocks if DB is empty or fails
+        setSeriesList(MOCK_SERIES);
+        setLoadingSeries(false);
+    });
     return () => unsubscribe();
   }, []);
 
@@ -77,7 +100,9 @@ function App() {
     }
   };
 
-  const featuredShow = MOCK_SERIES.find(s => s.id === '1');
+  const displaySeries = seriesList.length > 0 ? seriesList : MOCK_SERIES;
+  // Get featured show (either flagged as featured or just the first one)
+  const featuredShow = displaySeries.find(s => s.is_featured) || displaySeries[0];
 
   // Dedicated Route Handling
 
@@ -172,7 +197,7 @@ function App() {
                     </a>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                  {MOCK_SERIES.map((series) => (
+                  {displaySeries.map((series) => (
                     <DiziCard 
                         key={series.id} 
                         series={series} 
@@ -185,7 +210,7 @@ function App() {
               {/* Ratings Preview Section */}
               <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2">
-                    <RatingsTable ratings={MOCK_RATINGS} series={MOCK_SERIES} />
+                    <RatingsTable ratings={MOCK_RATINGS} series={displaySeries} />
                 </div>
                 <div className="bg-navy-800 rounded-xl p-6 border border-white/5">
                     <h3 className="font-bold text-white mb-4 flex items-center gap-2">
@@ -217,8 +242,8 @@ function App() {
       case 'RATINGS':
         return (
           <div className="container mx-auto px-4 py-12">
-            <h2 className="text-3xl font-bold mb-8">Detailed Ratings</h2>
-            <RatingsTable ratings={MOCK_RATINGS} series={MOCK_SERIES} />
+            <h2 className="text-3xl font-bold mb-8 text-white">Detailed Ratings</h2>
+            <RatingsTable ratings={MOCK_RATINGS} series={displaySeries} />
           </div>
         );
 
@@ -235,26 +260,12 @@ function App() {
                         <div key={day} className="bg-navy-800 rounded-lg p-4 min-h-[200px] border border-white/5 relative">
                             <span className="text-gray-500 font-bold uppercase text-xs">{day}</span>
                             
-                            {/* Mock logic to place cards */}
+                            {/* Mock logic to place cards - mapped to real data eventually */}
                             {i === 4 && (
                                 <div className="mt-4 bg-navy-700 p-2 rounded border-l-2 border-purple">
                                     <div className="text-xs text-purple font-bold">20:00</div>
                                     <div className="text-sm font-bold text-white truncate">Kızılcık Şerbeti</div>
                                     <div className="text-[10px] text-gray-400">Show TV</div>
-                                </div>
-                            )}
-                            {i === 4 && (
-                                <div className="mt-2 bg-navy-700 p-2 rounded border-l-2 border-blue-500">
-                                    <div className="text-xs text-blue-400 font-bold">20:00</div>
-                                    <div className="text-sm font-bold text-white truncate">Yalı Çapkını</div>
-                                    <div className="text-[10px] text-gray-400">Star TV</div>
-                                </div>
-                            )}
-                             {i === 6 && (
-                                <div className="mt-4 bg-navy-700 p-2 rounded border-l-2 border-orange-500">
-                                    <div className="text-xs text-orange-400 font-bold">20:00</div>
-                                    <div className="text-sm font-bold text-white truncate">Yargı</div>
-                                    <div className="text-[10px] text-gray-400">Kanal D</div>
                                 </div>
                             )}
                         </div>
@@ -333,7 +344,7 @@ function App() {
                              </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {MOCK_SERIES.filter(s => watchlist.includes(s.id)).map(series => (
+                                {displaySeries.filter(s => watchlist.includes(s.id)).map(series => (
                                     <DiziCard key={series.id} series={series} onAddToWatchlist={() => {}} />
                                 ))}
                             </div>
