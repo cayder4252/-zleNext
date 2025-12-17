@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart } from 'lucide-react';
+import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart, Clock, Trash2 } from 'lucide-react';
 import { ViewState, User } from '../types';
 
 interface LayoutProps {
@@ -26,6 +26,10 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
   const startMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Recent Searches State
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const navItems: { label: string; view: ViewState }[] = [
     { label: 'Home', view: 'HOME' },
@@ -33,8 +37,23 @@ export const Layout: React.FC<LayoutProps> = ({
     { label: 'Calendar', view: 'CALENDAR' },
   ];
 
-  // Close menu when clicking outside
+  // Load History & Close menu when clicking outside
   useEffect(() => {
+    // Load History
+    const savedHistory = localStorage.getItem('searchHistory');
+    if (savedHistory) {
+        try {
+            const parsed = JSON.parse(savedHistory);
+            if (Array.isArray(parsed)) {
+                // Ensure only strings are loaded to prevent corruption
+                setRecentSearches(parsed.filter((item: any) => typeof item === 'string'));
+            }
+        } catch (e) {
+            console.error("Failed to parse search history");
+        }
+    }
+
+    // Click Outside logic
     function handleClickOutside(event: MouseEvent) {
       if (startMenuRef.current && !startMenuRef.current.contains(event.target as Node)) {
         setIsStartMenuOpen(false);
@@ -54,6 +73,54 @@ export const Layout: React.FC<LayoutProps> = ({
       onBrowse(title, endpoint, params);
       setIsStartMenuOpen(false);
       onChangeView('HOME');
+  };
+
+  // --- SEARCH HISTORY LOGIC ---
+  const saveSearchTerm = (term: string) => {
+      if (typeof term !== 'string') return;
+      const cleanTerm = term.trim();
+      if (!cleanTerm) return;
+
+      // Filter to ensure we only have strings before saving
+      const validHistory = recentSearches.filter(t => typeof t === 'string');
+      const newHistory = [cleanTerm, ...validHistory.filter(t => t !== cleanTerm)].slice(0, 8);
+      
+      setRecentSearches(newHistory);
+      try {
+          localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+      } catch (e) {
+          console.warn('Failed to save search history', e);
+      }
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+          saveSearchTerm(searchQuery);
+          setIsSearchFocused(false);
+          // App.tsx handles the actual search execution via useEffect on searchQuery
+      }
+  };
+
+  const handleRecentClick = (term: string) => {
+      setSearchQuery(term);
+      saveSearchTerm(term); // Move to top
+      setIsSearchFocused(false);
+  };
+
+  const deleteRecent = (e: React.MouseEvent, term: string) => {
+      e.stopPropagation(); // Prevent clicking the parent row
+      const newHistory = recentSearches.filter(t => t !== term);
+      setRecentSearches(newHistory);
+      try {
+          localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+      } catch (e) {
+          console.warn('Failed to update search history', e);
+      }
+  };
+
+  const clearHistory = () => {
+      setRecentSearches([]);
+      localStorage.removeItem('searchHistory');
   };
 
   const GENRES_LEFT = [
@@ -222,13 +289,16 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Desktop Search */}
-          <div className="hidden md:flex flex-1 max-w-lg mx-8 relative">
+          <div className="hidden md:flex flex-1 max-w-lg mx-8 relative group">
             <input
               type="text"
               placeholder="Search series, actors..."
               className="w-full bg-navy-800 border border-navy-700 text-white px-4 py-2 pl-10 pr-10 rounded-full focus:outline-none focus:border-purple transition-colors text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+              onKeyDown={handleSearchKeyDown}
             />
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
             
@@ -241,6 +311,35 @@ export const Layout: React.FC<LayoutProps> = ({
                 >
                     <X className="w-4 h-4" />
                 </button>
+            )}
+
+            {/* Recent Searches Dropdown (Desktop) */}
+            {isSearchFocused && !searchQuery && recentSearches.length > 0 && (
+                <div 
+                    className="absolute top-full left-0 w-full bg-navy-800 border border-white/10 rounded-xl mt-2 py-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 overflow-hidden"
+                    onMouseDown={(e) => e.preventDefault()} // Prevents blur on click
+                >
+                    <div className="flex justify-between items-center px-4 py-2 text-[10px] text-gray-500 uppercase font-bold border-b border-white/5">
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Recent Searches</span>
+                        <button onClick={clearHistory} className="hover:text-red-400 transition-colors">Clear All</button>
+                    </div>
+                    {recentSearches.map((term, idx) => (
+                        <div 
+                            key={idx} 
+                            onClick={() => handleRecentClick(term)}
+                            className="flex items-center justify-between px-4 py-2.5 hover:bg-white/5 cursor-pointer text-sm text-gray-300 hover:text-white transition-colors group/item"
+                        >
+                            <span className="truncate">{term}</span>
+                            <button 
+                                onClick={(e) => deleteRecent(e, term)}
+                                className="text-gray-600 hover:text-red-400 p-1 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                title="Remove from history"
+                            >
+                                <Trash2 className="w-3 h-3" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
             )}
           </div>
 
@@ -330,6 +429,7 @@ export const Layout: React.FC<LayoutProps> = ({
                   className="w-full bg-navy-900 border border-navy-700 text-white px-4 py-2 rounded-lg"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
                 />
                  {searchQuery ? (
                     <button 
@@ -342,6 +442,23 @@ export const Layout: React.FC<LayoutProps> = ({
                     <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
                  )}
                </div>
+
+                {/* Mobile Recent Searches */}
+                {!searchQuery && recentSearches.length > 0 && (
+                    <div className="bg-navy-900 rounded-lg p-2 border border-white/5">
+                        <div className="flex justify-between items-center px-2 pb-2 mb-2 border-b border-white/5 text-xs text-gray-500 uppercase font-bold">
+                            <span>Recent</span>
+                            <button onClick={clearHistory}>Clear</button>
+                        </div>
+                        {recentSearches.slice(0, 5).map((term, idx) => (
+                            <div key={idx} onClick={() => { handleRecentClick(term); setIsMobileMenuOpen(false); }} className="flex justify-between items-center px-2 py-2 text-gray-300 text-sm border-b border-white/5 last:border-0">
+                                <span className="flex items-center gap-2"><Clock className="w-3 h-3 text-gray-500" /> {term}</span>
+                                <button onClick={(e) => deleteRecent(e, term)}><X className="w-3 h-3 text-gray-600" /></button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
               {navItems.map((item) => (
                 <button
                   key={item.label}
