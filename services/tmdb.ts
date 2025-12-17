@@ -34,6 +34,7 @@ interface TmdbDetail extends TmdbItem {
   next_episode_to_air?: TmdbEpisode;
   seasons?: TmdbSeason[];
   reviews?: { results: TmdbReview[] };
+  external_ids?: { imdb_id: string | null };
 }
 
 interface TmdbSeason {
@@ -124,7 +125,7 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
       air_date: s.air_date,
       poster_path: s.poster_path ? `${IMAGE_BASE_URL}${s.poster_path}` : undefined,
       overview: s.overview
-  })).filter(s => s.season_number > 0) : []; // Filter out season 0 (specials) usually
+  })).filter(s => s.season_number > 0) : []; 
 
   // Map Reviews
   const reviews: Review[] = detailedItem.reviews ? detailedItem.reviews.results.map(r => ({
@@ -157,6 +158,7 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
     next_episode: nextEpisode,
     seasons: seasons,
     reviews: reviews,
+    imdb_id: detailedItem.external_ids?.imdb_id || undefined, // Map IMDb ID
     social_links: {} 
   };
 };
@@ -198,8 +200,8 @@ export const tmdb = {
 
   getDetails: async (id: string, type: 'movie' | 'tv' = 'tv'): Promise<{ series: Series, cast: Actor[] }> => {
     try {
-      // Added reviews to append_to_response
-      const response = await fetch(`${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons`);
+      // Added external_ids to append_to_response to get IMDb ID
+      const response = await fetch(`${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons,external_ids`);
       const data = await response.json();
       
       const series = mapTmdbToSeries(data);

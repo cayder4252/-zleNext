@@ -31,6 +31,15 @@ export interface Series {
   next_episode?: Episode;
   seasons?: Season[];
   reviews?: Review[];
+
+  // OMDb / External Data
+  imdb_id?: string;
+  imdb_rating?: string;
+  imdb_votes?: string;
+  awards?: string;
+  director?: string;
+  writer?: string;
+  metascore?: string;
 }
 
 export interface Episode {

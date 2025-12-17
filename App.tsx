@@ -5,12 +5,13 @@ import { RatingsTable } from './components/RatingsTable';
 import { SeriesDetail } from './components/SeriesDetail'; 
 import { AdminPanel } from './pages/Admin';
 import { AuthPage } from './pages/Auth';
-import { ViewState, User, Series, Actor } from './types'; // Added Actor type
+import { ViewState, User, Series, Actor } from './types'; 
 import { MOCK_SERIES, MOCK_RATINGS } from './constants';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, updateProfile as updateAuthProfile } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { tmdb } from './services/tmdb'; // Import TMDb Service
+import { tmdb } from './services/tmdb';
+import { omdb } from './services/omdb'; // Import OMDb Service
 import { 
     Calendar as CalendarIcon, 
     Play, 
@@ -31,23 +32,18 @@ function App() {
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null); 
   const [user, setUser] = useState<User | null>(null);
   
-  // Real-time user profile data
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   
-  // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  // Data State
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [calendarData, setCalendarData] = useState<Series[]>([]);
   const [loadingSeries, setLoadingSeries] = useState(true);
   
-  // Detail View Data
   const [detailData, setDetailData] = useState<{ series: Series, cast: Actor[] } | null>(null);
 
-  // Profile Form State
   const [profileForm, setProfileForm] = useState({
       name: '',
       avatar_url: '',
@@ -55,7 +51,6 @@ function App() {
       bio: ''
   });
 
-  // Monitor Firebase Auth State
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -77,7 +72,6 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Monitor Real-time User Data (Firestore)
   useEffect(() => {
     if (!user?.id) return;
     const unsub = onSnapshot(doc(db, 'users', user.id), (doc) => {
@@ -88,12 +82,10 @@ function App() {
     return () => unsub;
   }, [user?.id]);
 
-  // Initial Data Fetch (TMDb Global Trending + Firestore fallback)
   useEffect(() => {
     const fetchData = async () => {
       setLoadingSeries(true);
       
-      // 1. Fetch from Firestore (User custom/admin added shows)
       const firestorePromise = new Promise<Series[]>((resolve) => {
          const unsub = onSnapshot(collection(db, 'series'), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Series[];
@@ -101,7 +93,6 @@ function App() {
          }, () => resolve([]));
       });
 
-      // 2. Fetch from TMDb (Global Trending)
       const tmdbPromise = tmdb.getTrendingSeries();
 
       try {
@@ -124,14 +115,12 @@ function App() {
     fetchData();
   }, []);
 
-  // Fetch Calendar Data when view changes to CALENDAR
   useEffect(() => {
     if (currentView === 'CALENDAR' && calendarData.length === 0) {
         tmdb.getCalendarShows().then(data => setCalendarData(data));
     }
   }, [currentView]);
 
-  // Handle Search using TMDb
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchQuery.trim().length > 2) {
@@ -140,7 +129,6 @@ function App() {
         setSeriesList(results);
         setIsSearching(false);
       } else if (searchQuery.trim().length === 0 && !loadingSeries) {
-        // Reset to default list
         const homeData = await tmdb.getTrendingSeries();
         setSeriesList(homeData);
       }
@@ -228,11 +216,29 @@ function App() {
       const isTmdbId = /^\d+$/.test(id);
       if (isTmdbId) {
           try {
-              const data = await tmdb.getDetails(id, 'tv');
+              // 1. Fetch from TMDb
+              let data = await tmdb.getDetails(id, 'tv');
+              
+              // 2. Fetch extra data from OMDb if IMDb ID exists
+              if (data.series.imdb_id) {
+                  const omdbData = await omdb.getDetails(data.series.imdb_id);
+                  if (omdbData) {
+                      // Merge OMDb data
+                      data.series = { ...data.series, ...omdbData };
+                  }
+              }
+
               setDetailData(data);
           } catch (e) {
                try {
-                   const data = await tmdb.getDetails(id, 'movie');
+                   // Retry as Movie
+                   let data = await tmdb.getDetails(id, 'movie');
+                   if (data.series.imdb_id) {
+                      const omdbData = await omdb.getDetails(data.series.imdb_id);
+                      if (omdbData) {
+                          data.series = { ...data.series, ...omdbData };
+                      }
+                   }
                    setDetailData(data);
                } catch (err) {
                    console.error("Failed to fetch details", err);
@@ -253,10 +259,7 @@ function App() {
   const featuredShow = seriesList.find(s => s.is_featured) || seriesList[0];
   const watchlist = userProfile?.watchlist || [];
   const watchedSeries = seriesList.filter(s => watchlist.includes(s.id));
-  const totalEpisodes = watchedSeries.reduce((acc, curr) => acc + (curr.episodes_aired || 0), 0);
-  const totalHours = Math.round(totalEpisodes * 2.2); 
-
-  // Helpers for Calendar
+  
   const getDayName = (dateStr?: string) => {
       if (!dateStr) return 'TBA';
       const date = new Date(dateStr);
@@ -265,7 +268,6 @@ function App() {
   
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   
-  // Group Calendar Data by Day
   const calendarGrouped = calendarData.reduce((acc, series) => {
       if (series.next_episode?.air_date) {
           const day = new Date(series.next_episode.air_date).toLocaleDateString('en-US', { weekday: 'short' });
@@ -275,7 +277,6 @@ function App() {
       return acc;
   }, {} as Record<string, Series[]>);
 
-  // 1. Admin Logic
   if (currentView === 'ADMIN') {
     if (!user || user.role !== 'ADMIN') {
         setCurrentView('LOGIN');
@@ -294,7 +295,6 @@ function App() {
     );
   }
 
-  // 2. Auth Logic
   if (currentView === 'LOGIN' || currentView === 'REGISTER') {
     return (
         <AuthPage 
@@ -310,7 +310,6 @@ function App() {
       case 'HOME':
         return (
           <div className="animate-in fade-in duration-500">
-            {/* Show Featured only if not searching */}
             {!searchQuery && featuredShow && (
               <div className="relative h-[500px] md:h-[600px] w-full overflow-hidden">
                 <div className="absolute inset-0">
@@ -359,7 +358,6 @@ function App() {
             )}
 
             <div className="container mx-auto px-4 py-12 space-y-16">
-              {/* Featured / Search Results */}
               <section>
                 <div className="flex justify-between items-end mb-6">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -393,7 +391,6 @@ function App() {
                 )}
               </section>
 
-              {/* Ratings Preview Section */}
               {!searchQuery && (
                   <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2">
@@ -524,7 +521,6 @@ function App() {
         return (
           <div className="container mx-auto px-4 py-12 relative">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                {/* Profile Sidebar */}
                 <div className="bg-navy-800 p-6 rounded-xl border border-white/5 text-center h-fit">
                     <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-xl text-white overflow-hidden relative group">
                         {userProfile?.avatar_url ? (
@@ -547,7 +543,6 @@ function App() {
                     </button>
                 </div>
 
-                {/* Main Dashboard */}
                 <div className="md:col-span-3 space-y-8">
                     <div>
                         <h3 className="text-xl font-bold text-white mb-4">My Watchlist</h3>

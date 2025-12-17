@@ -15,7 +15,10 @@ import {
   ChevronRight,
   Eye,
   User as UserIcon,
-  MessageSquare
+  MessageSquare,
+  Trophy,
+  Film,
+  PenTool
 } from 'lucide-react';
 
 interface SeriesDetailProps {
@@ -52,12 +55,28 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
 
                 {/* Header Info */}
                 <div className="flex-1 space-y-4 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-3 mb-2">
                         <div className="flex items-center gap-1 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
                             <Star className="w-3 h-3 fill-current" />
                             {series.rating.toFixed(1)}/10
                         </div>
-                        <span className="text-gray-400 text-sm">TMDb</span>
+                        <span className="text-gray-400 text-sm border-r border-gray-600 pr-3">TMDb</span>
+                        
+                        {series.imdb_rating && (
+                            <>
+                                <div className="flex items-center gap-1 bg-[#F5C518] text-black px-2 py-1 rounded text-xs font-bold">
+                                    <span className="font-black">IMDb</span>
+                                    {series.imdb_rating}
+                                </div>
+                                <span className="text-gray-400 text-xs">{series.imdb_votes} votes</span>
+                            </>
+                        )}
+                        {series.metascore && (
+                            <div className="flex items-center gap-1 bg-[#66CC33] text-white px-2 py-1 rounded text-xs font-bold">
+                                <span>Metascore</span>
+                                {series.metascore}
+                            </div>
+                        )}
                     </div>
                     
                     <div>
@@ -132,6 +151,17 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                                 {series.synopsis}
                             </p>
                         </section>
+
+                         {/* OMDb Awards Section */}
+                         {series.awards && (
+                             <section className="bg-navy-800/50 p-4 rounded-lg border border-white/5 flex items-start gap-4">
+                                <Trophy className="w-8 h-8 text-[#F5C518] flex-shrink-0" />
+                                <div>
+                                    <h4 className="text-white font-bold text-sm uppercase mb-1">Awards & Recognition</h4>
+                                    <p className="text-gray-300 text-sm">{series.awards}</p>
+                                </div>
+                             </section>
+                         )}
 
                         {/* Latest Episodes Snippet */}
                         {series.latest_episode && (
@@ -356,6 +386,12 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                            )}
                            <InfoRow label="Runtime" value={series.runtime || "-"} />
                            <InfoRow label="Original Title" value={series.title_en || series.title_tr} />
+                           {series.director && (
+                               <InfoRow label="Director" value={series.director} />
+                           )}
+                           {series.writer && (
+                               <InfoRow label="Writer" value={series.writer} />
+                           )}
                            <div className="flex justify-between py-2 border-b border-gray-100">
                                <span className="font-bold text-navy-900 text-xs uppercase">Genres</span>
                                <div className="flex flex-col items-end gap-1">
