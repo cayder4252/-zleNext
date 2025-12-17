@@ -177,11 +177,13 @@ function App() {
   };
 
   const handleOpenEditProfile = () => {
+    // Merge potential sources to ensure fields are populated
+    const displayUser = user ? { ...user, ...userProfile } : null;
     setProfileForm({
-        name: userProfile?.name || user?.name || '',
-        avatar_url: userProfile?.avatar_url || user?.avatar_url || '',
-        location: userProfile?.location || '',
-        bio: userProfile?.bio || ''
+        name: displayUser?.name || '',
+        avatar_url: displayUser?.avatar_url || '',
+        location: userProfile?.location || '', // Only in Firestore
+        bio: userProfile?.bio || '' // Only in Firestore
     });
     setIsEditingProfile(true);
   };
@@ -204,6 +206,7 @@ function App() {
                   displayName: profileForm.name,
                   photoURL: profileForm.avatar_url
               });
+              // Optimistically update local state to reflect changes immediately
               setUser(prev => prev ? ({ ...prev, name: profileForm.name, avatar_url: profileForm.avatar_url }) : null);
           }
           setIsEditingProfile(false);
@@ -259,7 +262,8 @@ function App() {
 
   const featuredShow = seriesList.find(s => s.is_featured) || seriesList[0];
   const watchlist = userProfile?.watchlist || [];
-  const watchedSeries = seriesList.filter(s => watchlist.includes(s.id));
+  // Merge Auth user and Firestore profile to prevent data flicker/loss
+  const displayUser = user ? { ...user, ...userProfile } : null;
   
   const getDayName = (dateStr?: string) => {
       if (!dateStr) return 'TBA';
@@ -586,14 +590,14 @@ function App() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <div className="bg-navy-800 p-6 rounded-xl border border-white/5 text-center h-fit">
                     <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-xl text-white overflow-hidden relative group">
-                        {userProfile?.avatar_url ? (
-                            <img src={userProfile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                        {displayUser?.avatar_url ? (
+                            <img src={displayUser.avatar_url} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
                             user.name.charAt(0).toUpperCase()
                         )}
                     </div>
                     
-                    <h2 className="text-xl font-bold text-white">{userProfile?.name || user.name}</h2>
+                    <h2 className="text-xl font-bold text-white">{displayUser?.name || user.name}</h2>
                     <p className="text-gray-400 text-sm mb-6">
                         {userProfile?.bio || 'Series Addict'} • {userProfile?.location || 'Istanbul'}
                     </p>
@@ -653,7 +657,7 @@ function App() {
     <Layout 
         currentView={currentView} 
         onChangeView={setCurrentView} 
-        user={userProfile || user}
+        user={displayUser}
         onLogout={handleLogout}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
