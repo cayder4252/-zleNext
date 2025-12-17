@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { DiziCard } from './components/DiziCard';
 import { RatingsTable } from './components/RatingsTable';
 import { AdminPanel } from './pages/Admin';
 import { AuthPage } from './pages/Auth';
 import { ViewState, User } from './types';
-import { MOCK_SERIES, MOCK_RATINGS, MOCK_ACTORS } from './constants';
+import { MOCK_SERIES, MOCK_RATINGS } from './constants';
+import { auth } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
     Calendar as CalendarIcon, 
     Play, 
@@ -22,14 +24,31 @@ function App() {
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
 
-  const handleLogin = (email: string, name: string, role: 'ADMIN' | 'USER') => {
-    setUser({
-      id: 'u1',
-      name: name,
-      email: email,
-      role: role
+  // Monitor Firebase Auth State
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // Determine role based on email pattern or existing custom claim if available
+        // For this demo, we maintain the simple check
+        const role = firebaseUser.email?.toLowerCase().includes('admin') ? 'ADMIN' : 'USER';
+        
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          email: firebaseUser.email || '',
+          role: role
+        });
+      } else {
+        setUser(null);
+      }
     });
-    // Redirect logic
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = (email: string, name: string, role: 'ADMIN' | 'USER') => {
+    // This function is now mainly a callback to handle navigation after auth success
+    // The actual user state is set by the useEffect hook above
     if (role === 'ADMIN') {
       setCurrentView('ADMIN');
     } else {
@@ -37,9 +56,13 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setCurrentView('HOME');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setCurrentView('HOME');
+    } catch (error) {
+      console.error("Error signing out: ", error);
+    }
   };
 
   const handleAddToWatchlist = (id: string) => {

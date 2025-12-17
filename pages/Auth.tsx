@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { PlayCircle, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { ViewState } from '../types';
+import { auth, db } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface AuthProps {
   view: 'LOGIN' | 'REGISTER';
@@ -13,19 +16,48 @@ export const AuthPage: React.FC<AuthProps> = ({ view, onChangeView, onLogin }) =
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // Mock logic: if email contains 'admin', grant admin role
+    try {
+      let userCredential;
       const role = email.toLowerCase().includes('admin') ? 'ADMIN' : 'USER';
-      const displayName = name || email.split('@')[0];
+
+      if (view === 'REGISTER') {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // Update Display Name
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName: name });
+        }
+
+        // Create User Document in Firestore for Stats
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          uid: userCredential.user.uid,
+          name: name,
+          email: email,
+          role: role,
+          createdAt: new Date().toISOString()
+        });
+
+      } else {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      }
+
+      // Success
+      const displayName = userCredential.user.displayName || name || email.split('@')[0];
       onLogin(email, displayName, role);
-    }, 1000);
+
+    } catch (err: any) {
+      console.error("Auth Error:", err);
+      setError(err.message || "An authentication error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -57,6 +89,12 @@ export const AuthPage: React.FC<AuthProps> = ({ view, onChangeView, onLogin }) =
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-lg">
+              {error}
+            </div>
+          )}
+
           {view === 'REGISTER' && (
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-300 ml-1">Full Name</label>
@@ -87,10 +125,6 @@ export const AuthPage: React.FC<AuthProps> = ({ view, onChangeView, onLogin }) =
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            {/* Hint for demo purposes */}
-             <p className="text-[10px] text-gray-500 px-1">
-               *Hint: Use an email containing "admin" to test Admin features.
-             </p>
           </div>
 
           <div className="space-y-1">
