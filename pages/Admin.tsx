@@ -9,14 +9,17 @@ import {
   Search,
   CheckCircle,
   TrendingUp,
-  AlertCircle
+  Image as ImageIcon,
+  Copy,
+  Trash2
 } from 'lucide-react';
 import { MOCK_SERIES } from '../constants';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from 'firebase/storage';
 
 export const AdminPanel: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SHOWS' | 'RATINGS' | 'USERS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SHOWS' | 'RATINGS' | 'USERS' | 'MEDIA'>('DASHBOARD');
   
   // Real-time Stats State
   const [stats, setStats] = useState({
@@ -25,6 +28,10 @@ export const AdminPanel: React.FC = () => {
     reviews: 0,
     visits: 89000 // Mock for now as live analytics tracking is complex
   });
+
+  // Media Library State
+  const [images, setImages] = useState<{name: string, url: string, fullPath: string}[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     // 1. Listen to Series Count
@@ -60,6 +67,65 @@ export const AdminPanel: React.FC = () => {
     };
   }, []);
 
+  // Fetch Images when Media tab is active
+  useEffect(() => {
+    if (activeTab === 'MEDIA') {
+      fetchImages();
+    }
+  }, [activeTab]);
+
+  const fetchImages = async () => {
+    const listRef = ref(storage, 'uploads/');
+    try {
+      const res = await listAll(listRef);
+      const urlPromises = res.items.map(async (itemRef) => {
+        const url = await getDownloadURL(itemRef);
+        return { name: itemRef.name, url, fullPath: itemRef.fullPath };
+      });
+      const imageUrls = await Promise.all(urlPromises);
+      setImages(imageUrls);
+    } catch (error) {
+      console.error("Error fetching images", error);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setUploading(true);
+      const file = e.target.files[0];
+      // Create a unique filename
+      const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
+      
+      try {
+        await uploadBytes(storageRef, file);
+        await fetchImages(); // Refresh list
+      } catch (error) {
+        console.error("Upload failed", error);
+        alert("Upload failed. Please try again.");
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
+
+  const handleDeleteImage = async (fullPath: string) => {
+    if (window.confirm('Are you sure you want to delete this image?')) {
+        const imageRef = ref(storage, fullPath);
+        try {
+            await deleteObject(imageRef);
+            setImages(prev => prev.filter(img => img.fullPath !== fullPath));
+        } catch (error) {
+            console.error("Error deleting image", error);
+            alert("Could not delete image.");
+        }
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+      navigator.clipboard.writeText(text);
+      alert("URL copied to clipboard!");
+  };
+
   // Admin styling is deliberately "Light Mode" per requirements
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex">
@@ -83,6 +149,13 @@ export const AdminPanel: React.FC = () => {
           >
             <Film className="w-5 h-5" />
             Series Database
+          </button>
+          <button 
+            onClick={() => setActiveTab('MEDIA')}
+            className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors ${activeTab === 'MEDIA' ? 'bg-purple/10 text-purple' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            <ImageIcon className="w-5 h-5" />
+            Media Library
           </button>
           <button 
             onClick={() => setActiveTab('RATINGS')}
@@ -132,7 +205,10 @@ export const AdminPanel: React.FC = () => {
                      <button className="flex items-center gap-2 px-4 py-2 bg-purple text-white rounded-lg hover:bg-purple-dark shadow-sm shadow-purple/30">
                         <Plus className="w-4 h-4" /> Add New Series
                      </button>
-                     <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                     <button 
+                        onClick={() => setActiveTab('MEDIA')}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                     >
                         <Upload className="w-4 h-4" /> Upload Banners
                      </button>
                 </div>
@@ -188,6 +264,65 @@ export const AdminPanel: React.FC = () => {
                         ))}
                     </tbody>
                 </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'MEDIA' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-900">Media Library</h1>
+                <div className="relative">
+                    <input 
+                        type="file" 
+                        id="file-upload" 
+                        className="hidden" 
+                        onChange={handleFileUpload}
+                        accept="image/*"
+                        disabled={uploading}
+                    />
+                    <label 
+                        htmlFor="file-upload"
+                        className={`bg-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 cursor-pointer hover:bg-purple-dark transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                        {uploading ? (
+                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                             <Upload className="w-4 h-4" />
+                        )}
+                        {uploading ? 'Uploading...' : 'Upload Image'}
+                    </label>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {images.map((img) => (
+                        <div key={img.fullPath} className="group relative aspect-[2/3] bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                            <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                                <button 
+                                    onClick={() => copyToClipboard(img.url)}
+                                    className="w-full bg-white text-gray-900 py-1.5 rounded-md text-xs font-bold flex items-center justify-center gap-1 hover:bg-gray-200"
+                                >
+                                    <Copy className="w-3 h-3" /> Copy URL
+                                </button>
+                                <button 
+                                    onClick={() => handleDeleteImage(img.fullPath)}
+                                    className="w-full bg-red-500 text-white py-1.5 rounded-md text-xs font-bold flex items-center justify-center gap-1 hover:bg-red-600"
+                                >
+                                    <Trash2 className="w-3 h-3" /> Delete
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {images.length === 0 && (
+                        <div className="col-span-full py-12 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                            <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                            <p>No images uploaded yet. Upload a poster or banner to get started.</p>
+                        </div>
+                    )}
+                </div>
             </div>
           </div>
         )}

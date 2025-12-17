@@ -60,7 +60,7 @@ export const RatingsTable: React.FC<RatingsTableProps> = ({ ratings: initialRati
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {displayRatings.sort((a, b) => a.rank - b.rank).map((record) => {
+            {[...displayRatings].sort((a, b) => a.rank - b.rank).map((record) => {
               const show = getSeries(record.series_id);
               // Handle case where series ID doesn't match mock data (fallback to mock show for demo if needed, or show basic text)
               const title = show?.title_tr || record.series_id;
