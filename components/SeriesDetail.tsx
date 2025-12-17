@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Series, Actor, Episode } from '../types';
 import { tmdb } from '../services/tmdb';
 import { StreamingAvailability } from './StreamingAvailability';
@@ -37,6 +37,11 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
   const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
   const [seasonEpisodes, setSeasonEpisodes] = useState<Record<number, Episode[]>>({});
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+  const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
+
+  useEffect(() => {
+    setIsPlayingTrailer(false);
+  }, [series.id]);
 
   const toggleSeason = async (seasonNumber: number) => {
       if (expandedSeason === seasonNumber) {
@@ -220,16 +225,35 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                         {/* Trailer */}
                         {series.trailer_url && (
                             <section>
-                                <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Videos</h3>
-                                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-lg">
-                                    <iframe 
-                                        src={series.trailer_url.replace('watch?v=', 'embed/')} 
-                                        title="Trailer" 
-                                        className="w-full h-full" 
-                                        frameBorder="0" 
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                        allowFullScreen 
-                                    />
+                                <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Trailers & Videos</h3>
+                                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-lg relative group">
+                                    {!isPlayingTrailer ? (
+                                        <div 
+                                            className="w-full h-full cursor-pointer relative"
+                                            onClick={() => setIsPlayingTrailer(true)}
+                                        >
+                                            <img 
+                                                src={series.banner_url || series.poster_url} 
+                                                alt="Trailer Thumbnail" 
+                                                className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-300"
+                                            />
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform duration-300">
+                                                    <Play className="w-8 h-8 text-white fill-current ml-1" />
+                                                </div>
+                                                <span className="mt-4 text-white font-bold text-lg tracking-wide uppercase drop-shadow-md">Watch Trailer</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <iframe 
+                                            src={`${series.trailer_url.replace('watch?v=', 'embed/')}?autoplay=1`} 
+                                            title="Trailer" 
+                                            className="w-full h-full" 
+                                            frameBorder="0" 
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                            allowFullScreen 
+                                        />
+                                    )}
                                 </div>
                             </section>
                         )}
