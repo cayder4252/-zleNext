@@ -16,12 +16,14 @@ import {
   Edit2,
   Save,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Database
 } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, onSnapshot, query, where, addDoc, doc, updateDoc, deleteDoc, orderBy, limit, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from 'firebase/storage';
 import { Series, User, RatingRecord } from '../types';
+import { MOCK_SERIES, MOCK_RATINGS } from '../constants';
 
 export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'SHOWS' | 'RATINGS' | 'USERS' | 'MEDIA' | 'SETTINGS'>('DASHBOARD');
@@ -99,6 +101,31 @@ export const AdminPanel: React.FC = () => {
     if (activeTab === 'MEDIA') fetchImages();
   }, [activeTab]);
 
+  // --- ACTIONS: SEED ---
+  const handleSeedDatabase = async () => {
+    if (!window.confirm("This will populate your database with sample data (Series & Ratings). Continue?")) return;
+    setUploading(true);
+    try {
+        // Seed Series
+        for (const s of MOCK_SERIES) {
+             const { id, ...data } = s; 
+             // We use setDoc to preserve the IDs from mocks so relationships stay intact
+             await setDoc(doc(db, 'series', s.id), data);
+        }
+        // Seed Ratings
+        for (const r of MOCK_RATINGS) {
+             const { id, ...data } = r;
+             await setDoc(doc(db, 'ratings', r.id), data);
+        }
+        alert("Database seeded successfully! The Home Page will now reflect this data.");
+    } catch (error) {
+        console.error("Error seeding DB:", error);
+        alert("Failed to seed database. Check console for details.");
+    } finally {
+        setUploading(false);
+    }
+  };
+
   // --- ACTIONS: MEDIA ---
   const fetchImages = async () => {
     const listRef = ref(storage, 'uploads/');
@@ -160,7 +187,7 @@ export const AdminPanel: React.FC = () => {
       setIsSeriesModalOpen(true);
   };
 
-  // New: Direct upload inside modal
+  // Direct upload inside modal
   const handleModalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'poster_url' | 'banner_url') => {
       if (e.target.files && e.target.files[0] && editingSeries) {
           setModalUploading(field);
@@ -291,6 +318,29 @@ export const AdminPanel: React.FC = () => {
         {activeTab === 'DASHBOARD' && (
           <div className="space-y-6">
             <h1 className="text-2xl font-bold text-gray-900">Command Center</h1>
+            
+            {/* Warning if DB is empty */}
+            {stats.series === 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-xl flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600">
+                            <Database className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-yellow-900 text-lg">Database is Empty</h3>
+                            <p className="text-sm text-yellow-800">The home page is currently showing Mock Data. Add a series or seed the database to go live.</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={handleSeedDatabase} 
+                        disabled={uploading}
+                        className="bg-yellow-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-yellow-700 shadow-sm disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {uploading ? 'Seeding...' : 'Seed Sample Data'}
+                    </button>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {[
                 { label: 'Total Series', val: stats.series, color: 'bg-blue-50 text-blue-700' },
@@ -347,6 +397,7 @@ export const AdminPanel: React.FC = () => {
                                 </td>
                                 <td className="px-6 py-4 font-medium text-gray-900">
                                     {s.title_tr}
+                                    {s.is_featured && <span className="ml-2 px-1.5 py-0.5 bg-purple/10 text-purple text-[10px] rounded border border-purple/20">Featured</span>}
                                     <div className="text-xs text-gray-500">{s.title_en}</div>
                                 </td>
                                 <td className="px-6 py-4">
@@ -361,6 +412,9 @@ export const AdminPanel: React.FC = () => {
                                 </td>
                             </tr>
                         ))}
+                        {seriesList.length === 0 && (
+                            <tr><td colSpan={5} className="p-8 text-center text-gray-400">Database is empty. Add a series or seed data from Dashboard.</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -654,6 +708,19 @@ export const AdminPanel: React.FC = () => {
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Aired Eps</label>
                               <input type="number" value={editingSeries.episodes_aired} onChange={e => setEditingSeries({...editingSeries, episodes_aired: Number(e.target.value)})} className="w-full border border-gray-300 rounded p-2" />
                            </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2 bg-gray-50 p-2 rounded border border-gray-200">
+                           <input 
+                                type="checkbox" 
+                                id="is_featured" 
+                                checked={editingSeries.is_featured || false} 
+                                onChange={e => setEditingSeries({...editingSeries, is_featured: e.target.checked})} 
+                                className="w-4 h-4 text-purple rounded border-gray-300 focus:ring-purple"
+                           />
+                           <label htmlFor="is_featured" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
+                                Feature this series (Hero Slider)
+                           </label>
                       </div>
 
                       <div className="flex justify-end gap-3 pt-4">
