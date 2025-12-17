@@ -15,8 +15,8 @@ import {
   X,
   Edit2,
   Save,
-  Shield,
-  ShieldAlert
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, onSnapshot, query, where, addDoc, doc, updateDoc, deleteDoc, orderBy, limit, setDoc } from 'firebase/firestore';
@@ -32,11 +32,13 @@ export const AdminPanel: React.FC = () => {
   // Data Lists
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [usersList, setUsersList] = useState<User[]>([]);
+  const [recentRatings, setRecentRatings] = useState<RatingRecord[]>([]);
   const [images, setImages] = useState<{name: string, url: string, fullPath: string}[]>([]);
   
   // Forms & Modals
   const [isSeriesModalOpen, setIsSeriesModalOpen] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(false); // Global upload state
+  const [modalUploading, setModalUploading] = useState<'poster' | 'banner' | null>(null); // Specific modal upload state
   const [editingSeries, setEditingSeries] = useState<Partial<Series> | null>(null);
   
   // Ratings Form State
@@ -58,21 +60,27 @@ export const AdminPanel: React.FC = () => {
 
   // --- LISTENERS ---
   useEffect(() => {
-    // Series Listener
+    // 1. Series
     const unsubSeries = onSnapshot(collection(db, 'series'), (snapshot) => {
         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Series));
         setSeriesList(list);
         setStats(prev => ({ ...prev, series: snapshot.size }));
     });
 
-    // Users Listener
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+    // 2. Users
+    const unsubUsers = onSnapshot(query(collection(db, 'users'), orderBy('createdAt', 'desc')), (snapshot) => {
         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
         setUsersList(list);
         setStats(prev => ({ ...prev, users: snapshot.size }));
     });
 
-    // Settings Listener
+    // 3. Ratings (Recent 20)
+    const unsubRatings = onSnapshot(query(collection(db, 'ratings'), orderBy('date', 'desc'), limit(20)), (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RatingRecord));
+        setRecentRatings(list);
+    });
+
+    // 4. Settings
     const unsubSettings = onSnapshot(doc(db, 'settings', 'general'), (doc) => {
         if (doc.exists()) {
             setSettings(doc.data() as any);
@@ -82,7 +90,7 @@ export const AdminPanel: React.FC = () => {
     return () => {
         unsubSeries();
         unsubUsers();
-        unsubSettings();
+        unsubRatings();
         unsubSettings();
     };
   }, []);
@@ -152,6 +160,25 @@ export const AdminPanel: React.FC = () => {
       setIsSeriesModalOpen(true);
   };
 
+  // New: Direct upload inside modal
+  const handleModalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'poster_url' | 'banner_url') => {
+      if (e.target.files && e.target.files[0] && editingSeries) {
+          setModalUploading(field);
+          const file = e.target.files[0];
+          const storageRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
+          try {
+              const snapshot = await uploadBytes(storageRef, file);
+              const url = await getDownloadURL(snapshot.ref);
+              setEditingSeries(prev => prev ? ({ ...prev, [field]: url }) : null);
+          } catch (error) {
+              console.error("Upload failed", error);
+              alert("Upload failed. Please try again.");
+          } finally {
+              setModalUploading(null);
+          }
+      }
+  };
+
   const handleSaveSeries = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingSeries) return;
@@ -197,15 +224,22 @@ export const AdminPanel: React.FC = () => {
               rating: Number(ratingForm.rating),
               share: Number(ratingForm.share),
               category: ratingForm.category,
-              trend: 'stable', // Simple default for now
-              previous_rank: Number(ratingForm.rank), // Simplified logic
+              trend: 'stable', 
+              previous_rank: Number(ratingForm.rank),
               date: ratingForm.date
           });
-          alert("Rating added!");
-          setRatingForm({ ...ratingForm, rating: '', share: '', rank: '' });
+          // Reset relevant fields only
+          setRatingForm(prev => ({ ...prev, rating: '', share: '', rank: '' }));
+          alert("Rating added successfully!");
       } catch (error) {
           console.error(error);
           alert("Failed to add rating.");
+      }
+  };
+
+  const handleDeleteRating = async (id: string) => {
+      if(window.confirm("Delete this rating record?")) {
+          await deleteDoc(doc(db, 'ratings', id));
       }
   };
 
@@ -218,6 +252,8 @@ export const AdminPanel: React.FC = () => {
           console.error(error);
       }
   };
+
+  const getSeriesName = (id: string) => seriesList.find(s => s.id === id)?.title_tr || id;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex">
@@ -365,50 +401,86 @@ export const AdminPanel: React.FC = () => {
         {activeTab === 'RATINGS' && (
             <div className="space-y-6">
                  <h1 className="text-2xl font-bold text-gray-900">Rating Input Tool</h1>
-                 <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm max-w-2xl">
-                    <form onSubmit={handleSaveRating} className="space-y-4">
-                         <div className="grid grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                     {/* Input Form */}
+                     <div className="lg:col-span-1 bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-fit">
+                        <h2 className="font-bold text-lg mb-4">Add New Rating</h2>
+                        <form onSubmit={handleSaveRating} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
                                 <input type="date" required value={ratingForm.date} onChange={e => setRatingForm({...ratingForm, date: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                                <select value={ratingForm.category} onChange={e => setRatingForm({...ratingForm, category: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2">
-                                    <option>Total</option>
-                                    <option>AB</option>
-                                    <option>ABC1</option>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Series</label>
+                                <select required value={ratingForm.series_id} onChange={e => setRatingForm({...ratingForm, series_id: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2">
+                                    <option value="">Select a show...</option>
+                                    {seriesList.map(s => <option key={s.id} value={s.id}>{s.title_tr}</option>)}
                                 </select>
                             </div>
-                         </div>
-                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Select Series</label>
-                            <select required value={ratingForm.series_id} onChange={e => setRatingForm({...ratingForm, series_id: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2">
-                                <option value="">Select a show...</option>
-                                {seriesList.map(s => <option key={s.id} value={s.id}>{s.title_tr}</option>)}
-                            </select>
-                         </div>
-                         <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Rank</label>
-                                <input type="number" required placeholder="1" value={ratingForm.rank} onChange={e => setRatingForm({...ratingForm, rank: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                                    <select value={ratingForm.category} onChange={e => setRatingForm({...ratingForm, category: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2">
+                                        <option>Total</option>
+                                        <option>AB</option>
+                                        <option>ABC1</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rank</label>
+                                    <input type="number" required placeholder="1" value={ratingForm.rank} onChange={e => setRatingForm({...ratingForm, rank: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
-                                <input type="number" step="0.01" required placeholder="5.40" value={ratingForm.rating} onChange={e => setRatingForm({...ratingForm, rating: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rating</label>
+                                    <input type="number" step="0.01" required placeholder="5.40" value={ratingForm.rating} onChange={e => setRatingForm({...ratingForm, rating: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Share (%)</label>
+                                    <input type="number" step="0.01" required placeholder="12.50" value={ratingForm.share} onChange={e => setRatingForm({...ratingForm, share: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Share (%)</label>
-                                <input type="number" step="0.01" required placeholder="12.50" value={ratingForm.share} onChange={e => setRatingForm({...ratingForm, share: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
-                            </div>
-                         </div>
-                         
-                         <div className="pt-4 flex justify-end">
-                            <button type="submit" className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 flex items-center gap-2">
+                            
+                            <button type="submit" className="w-full py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 flex items-center justify-center gap-2">
                                 <CheckCircle className="w-4 h-4" /> Save Rating
                             </button>
+                        </form>
+                     </div>
+
+                     {/* Recent Ratings List */}
+                     <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-gray-200">
+                             <h2 className="font-bold text-lg">Recent Entries</h2>
                         </div>
-                    </form>
+                        <table className="w-full text-left text-sm">
+                             <thead className="bg-gray-50 text-gray-500 font-medium">
+                                 <tr>
+                                     <th className="px-4 py-3">Date</th>
+                                     <th className="px-4 py-3">Show</th>
+                                     <th className="px-4 py-3">Cat</th>
+                                     <th className="px-4 py-3">Rtg</th>
+                                     <th className="px-4 py-3 text-right">Action</th>
+                                 </tr>
+                             </thead>
+                             <tbody className="divide-y divide-gray-100">
+                                 {recentRatings.map(r => (
+                                     <tr key={r.id} className="hover:bg-gray-50">
+                                         <td className="px-4 py-3 text-gray-500">{r.date || 'N/A'}</td>
+                                         <td className="px-4 py-3 font-medium">{getSeriesName(r.series_id)}</td>
+                                         <td className="px-4 py-3">{r.category}</td>
+                                         <td className="px-4 py-3 font-mono">{r.rating.toFixed(2)}</td>
+                                         <td className="px-4 py-3 text-right">
+                                             <button onClick={() => handleDeleteRating(r.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded"><Trash2 className="w-4 h-4" /></button>
+                                         </td>
+                                     </tr>
+                                 ))}
+                                 {recentRatings.length === 0 && (
+                                     <tr><td colSpan={5} className="p-8 text-center text-gray-400">No recent ratings found.</td></tr>
+                                 )}
+                             </tbody>
+                        </table>
+                     </div>
                  </div>
             </div>
         )}
@@ -416,13 +488,17 @@ export const AdminPanel: React.FC = () => {
         {/* USER MANAGER */}
         {activeTab === 'USERS' && (
           <div className="space-y-6">
-             <h1 className="text-2xl font-bold text-gray-900">User Manager</h1>
+             <div className="flex justify-between items-center">
+                 <h1 className="text-2xl font-bold text-gray-900">User Manager</h1>
+                 <span className="text-sm text-gray-500">Total: {usersList.length}</span>
+             </div>
              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
                         <tr>
                             <th className="px-6 py-3">User</th>
                             <th className="px-6 py-3">Email</th>
+                            <th className="px-6 py-3">Joined</th>
                             <th className="px-6 py-3">Role</th>
                             <th className="px-6 py-3 text-right">Actions</th>
                         </tr>
@@ -430,20 +506,31 @@ export const AdminPanel: React.FC = () => {
                     <tbody className="divide-y divide-gray-100">
                         {usersList.map(u => (
                             <tr key={u.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 font-medium">{u.name || 'Anonymous'}</td>
+                                <td className="px-6 py-4 font-medium flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-purple/10 text-purple flex items-center justify-center font-bold text-xs">
+                                        {u.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    {u.name || 'Anonymous'}
+                                </td>
                                 <td className="px-6 py-4 text-gray-600">{u.email}</td>
+                                <td className="px-6 py-4 text-gray-500 text-xs">
+                                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+                                </td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${u.role === 'ADMIN' ? 'bg-purple/10 text-purple' : 'bg-gray-100 text-gray-600'}`}>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${u.role === 'ADMIN' ? 'bg-purple/10 text-purple' : 'bg-green-100 text-green-700'}`}>
                                         {u.role}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     <button onClick={() => toggleUserRole(u)} className="text-xs border border-gray-300 px-3 py-1 rounded hover:bg-gray-100 transition-colors">
-                                        Toggle Role
+                                        Toggle Admin
                                     </button>
                                 </td>
                             </tr>
                         ))}
+                         {usersList.length === 0 && (
+                             <tr><td colSpan={5} className="p-8 text-center text-gray-400">No users found in database.</td></tr>
+                         )}
                     </tbody>
                 </table>
              </div>
@@ -485,7 +572,7 @@ export const AdminPanel: React.FC = () => {
       {isSeriesModalOpen && editingSeries && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
+                  <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
                       <h3 className="text-lg font-bold">{editingSeries.id ? 'Edit Series' : 'New Series'}</h3>
                       <button onClick={() => setIsSeriesModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                   </div>
@@ -522,15 +609,37 @@ export const AdminPanel: React.FC = () => {
 
                       <div className="grid grid-cols-2 gap-4">
                           <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Poster URL</label>
-                              <input required type="url" value={editingSeries.poster_url} onChange={e => setEditingSeries({...editingSeries, poster_url: e.target.value})} className="w-full border border-gray-300 rounded p-2" placeholder="https://..." />
+                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex justify-between">
+                                  Poster URL
+                                  {modalUploading === 'poster_url' && <span className="text-purple text-[10px] animate-pulse">Uploading...</span>}
+                              </label>
+                              <div className="flex gap-2">
+                                <input required type="url" value={editingSeries.poster_url} onChange={e => setEditingSeries({...editingSeries, poster_url: e.target.value})} className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="https://..." />
+                                <div className="relative">
+                                    <input type="file" id="modal-poster-upload" className="hidden" accept="image/*" onChange={(e) => handleModalImageUpload(e, 'poster_url')} />
+                                    <label htmlFor="modal-poster-upload" className="p-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer flex items-center justify-center h-full">
+                                        <Upload className="w-4 h-4 text-gray-600" />
+                                    </label>
+                                </div>
+                              </div>
                           </div>
                           <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Banner URL</label>
-                              <input required type="url" value={editingSeries.banner_url} onChange={e => setEditingSeries({...editingSeries, banner_url: e.target.value})} className="w-full border border-gray-300 rounded p-2" placeholder="https://..." />
+                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex justify-between">
+                                  Banner URL
+                                  {modalUploading === 'banner_url' && <span className="text-purple text-[10px] animate-pulse">Uploading...</span>}
+                              </label>
+                              <div className="flex gap-2">
+                                <input required type="url" value={editingSeries.banner_url} onChange={e => setEditingSeries({...editingSeries, banner_url: e.target.value})} className="w-full border border-gray-300 rounded p-2 text-sm" placeholder="https://..." />
+                                <div className="relative">
+                                    <input type="file" id="modal-banner-upload" className="hidden" accept="image/*" onChange={(e) => handleModalImageUpload(e, 'banner_url')} />
+                                    <label htmlFor="modal-banner-upload" className="p-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer flex items-center justify-center h-full">
+                                        <Upload className="w-4 h-4 text-gray-600" />
+                                    </label>
+                                </div>
+                              </div>
                           </div>
                       </div>
-                      <div className="text-xs text-gray-400">Tip: Upload images in "Media Library", copy the URL, and paste it here.</div>
+                      <div className="text-xs text-gray-400">Click the upload icon to select an image from your device.</div>
 
                       <div className="grid grid-cols-3 gap-4">
                            <div>

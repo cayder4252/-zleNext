@@ -30,6 +30,7 @@ export interface RatingRecord {
   rating: number;
   share: number;
   trend: 'up' | 'down' | 'stable';
+  date?: string;
 }
 
 export interface UserStats {
@@ -45,6 +46,7 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'USER';
   avatar_url?: string;
+  createdAt?: string;
 }
 
 export type ViewState = 'HOME' | 'RATINGS' | 'CALENDAR' | 'PROFILE' | 'ADMIN' | 'LOGIN' | 'REGISTER';
