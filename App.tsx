@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { DiziCard } from './components/DiziCard';
 import { RatingsTable } from './components/RatingsTable';
-import { SeriesDetail } from './components/SeriesDetail'; // Import new component
+import { SeriesDetail } from './components/SeriesDetail'; 
 import { AdminPanel } from './pages/Admin';
 import { AuthPage } from './pages/Auth';
-import { ViewState, User, Series } from './types';
+import { ViewState, User, Series, Actor } from './types'; // Added Actor type
 import { MOCK_SERIES, MOCK_RATINGS } from './constants';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, updateProfile as updateAuthProfile } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { tmdb } from './services/tmdb'; // Import TMDb Service
 import { 
     Calendar as CalendarIcon, 
     Play, 
@@ -26,19 +27,23 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
-  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null); // Track selected series
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null); 
   const [user, setUser] = useState<User | null>(null);
   
-  // Real-time user profile data (bio, location, watchlist from Firestore)
+  // Real-time user profile data
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   // Data State
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [loadingSeries, setLoadingSeries] = useState(true);
+  
+  // Detail View Data
+  const [detailData, setDetailData] = useState<{ series: Series, cast: Actor[] } | null>(null);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -73,34 +78,71 @@ function App() {
   // Monitor Real-time User Data (Firestore)
   useEffect(() => {
     if (!user?.id) return;
-
     const unsub = onSnapshot(doc(db, 'users', user.id), (doc) => {
         if (doc.exists()) {
-            const data = doc.data() as User;
-            setUserProfile(data);
-            // NOTE: We do NOT setProfileForm here anymore to avoid race conditions/overwrites while editing.
-            // Form state is initialized in handleOpenEditProfile instead.
+            setUserProfile(doc.data() as User);
         }
     });
     return () => unsub;
   }, [user?.id]);
 
-  // Fetch Series Data from Firestore
+  // Initial Data Fetch (TMDb + Firestore fallback)
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'series'), (snapshot) => {
-        const list = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as Series[];
-        setSeriesList(list);
-        setLoadingSeries(false);
-    }, (error) => {
-        console.error("Error fetching series:", error);
+    const fetchData = async () => {
+      setLoadingSeries(true);
+      
+      // 1. Fetch from Firestore (User custom/admin added shows)
+      const firestorePromise = new Promise<Series[]>((resolve) => {
+         const unsub = onSnapshot(collection(db, 'series'), (snapshot) => {
+            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Series[];
+            resolve(list);
+         }, () => resolve([]));
+      });
+
+      // 2. Fetch from TMDb (Turkish Dramas to populate the home page)
+      const tmdbPromise = tmdb.getTurkishSeries();
+
+      try {
+        const [firestoreData, tmdbData] = await Promise.all([firestorePromise, tmdbPromise]);
+        // Combine them, prioritizing Firestore if IDs conflict (rare with numeric TMDb IDs vs string Firestore IDs)
+        // If Firestore is empty, use TMDb. If TMDb fails, use Mock.
+        let combined = [...firestoreData, ...tmdbData];
+        
+        if (combined.length === 0) {
+            combined = MOCK_SERIES;
+        }
+        
+        setSeriesList(combined);
+      } catch (e) {
+        console.error("Error loading initial data", e);
         setSeriesList(MOCK_SERIES);
+      } finally {
         setLoadingSeries(false);
-    });
-    return () => unsubscribe();
+      }
+    };
+
+    fetchData();
   }, []);
+
+  // Handle Search using TMDb
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.trim().length > 2) {
+        setIsSearching(true);
+        const results = await tmdb.search(searchQuery);
+        setSeriesList(results);
+        setIsSearching(false);
+      } else if (searchQuery.trim().length === 0 && !loadingSeries) {
+        // Reset to default list (re-fetch generic list)
+        // For simplicity, we just re-call getTurkishSeries here or rely on the previous state if we managed it separately.
+        // Reloading page logic or storing 'initialList' is better, but let's just quick fetch:
+        const homeData = await tmdb.getTurkishSeries();
+        setSeriesList(homeData);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const handleLogin = (email: string, name: string, role: 'ADMIN' | 'USER') => {
     if (role === 'ADMIN') {
@@ -119,7 +161,6 @@ function App() {
     }
   };
 
-  // Add/Remove from Watchlist via Firestore
   const handleAddToWatchlist = async (id: string) => {
     if (!user) {
         setCurrentView('LOGIN');
@@ -141,7 +182,6 @@ function App() {
     }
   };
 
-  // Explicitly initialize form state when opening the modal
   const handleOpenEditProfile = () => {
     setProfileForm({
         name: userProfile?.name || user?.name || '',
@@ -155,12 +195,8 @@ function App() {
   const handleSaveProfile = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user) return;
-
       try {
-          // Update Firestore
           const userRef = doc(db, 'users', user.id);
-          
-          // Use setDoc with merge: true to handle both update and create scenarios
           await setDoc(userRef, {
               name: profileForm.name,
               avatar_url: profileForm.avatar_url,
@@ -169,44 +205,65 @@ function App() {
               updatedAt: new Date().toISOString()
           }, { merge: true });
           
-          // Update Auth Profile (Display Name / Photo)
           if (auth.currentUser) {
               await updateAuthProfile(auth.currentUser, {
                   displayName: profileForm.name,
                   photoURL: profileForm.avatar_url
               });
-              // Optimistically update local user state
               setUser(prev => prev ? ({ ...prev, name: profileForm.name, avatar_url: profileForm.avatar_url }) : null);
           }
-
           setIsEditingProfile(false);
           alert("Profile updated successfully!");
       } catch (error: any) {
-          console.error("Error updating profile:", error);
           alert("Failed to update profile: " + error.message);
       }
   };
 
-  const handleSeriesClick = (id: string) => {
+  // Updated Click Handler to Fetch Details from TMDb
+  const handleSeriesClick = async (id: string) => {
+      // Check if it's a numeric ID (TMDb) or string (Firebase)
+      // Assuming regex or simple check. TMDb IDs are numeric.
+      const isTmdbId = /^\d+$/.test(id);
+      
+      if (isTmdbId) {
+          try {
+              // Try fetching as TV first (since it's a drama app), fallback to movie if needed or handle generic
+              // For robustness, we can guess or try one. Let's assume TV for 'turkish dramas' or use what the search result type was if we stored it.
+              // We'll try TV first.
+              const data = await tmdb.getDetails(id, 'tv');
+              setDetailData(data);
+          } catch (e) {
+              // If TV fails, try movie
+               try {
+                   const data = await tmdb.getDetails(id, 'movie');
+                   setDetailData(data);
+               } catch (err) {
+                   console.error("Failed to fetch details", err);
+               }
+          }
+      } else {
+          // Firestore Data
+          const localSeries = seriesList.find(s => s.id === id);
+          if (localSeries) {
+              setDetailData({ series: localSeries, cast: [] });
+          }
+      }
+
       setSelectedSeriesId(id);
       setCurrentView('SERIES_DETAIL');
-      window.scrollTo(0, 0); // Scroll to top
+      window.scrollTo(0, 0); 
   };
 
-  // Filter Series based on Search Query
-  const allSeries = seriesList.length > 0 ? seriesList : MOCK_SERIES;
-  const filteredSeries = allSeries.filter(s => 
-      s.title_tr.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      s.title_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.network.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const featuredShow = filteredSeries.find(s => s.is_featured) || filteredSeries[0];
-  // Calculate Stats based on Watchlist
+  // Filter Logic is now mostly handled by the search effect updating the list, 
+  // but we can still filter locally if needed.
+  // We use seriesList directly.
+  const featuredShow = seriesList.find(s => s.is_featured) || seriesList[0];
   const watchlist = userProfile?.watchlist || [];
-  const watchedSeries = allSeries.filter(s => watchlist.includes(s.id));
+  // For stats calculation, using all series in list might not cover everything in watchlist if pagination existed,
+  // but for now it's fine.
+  const watchedSeries = seriesList.filter(s => watchlist.includes(s.id));
   const totalEpisodes = watchedSeries.reduce((acc, curr) => acc + (curr.episodes_aired || 0), 0);
-  const totalHours = Math.round(totalEpisodes * 2.2); // Avg 2.2 hours per episode
+  const totalHours = Math.round(totalEpisodes * 2.2); 
 
   // 1. Admin Logic
   if (currentView === 'ADMIN') {
@@ -293,18 +350,20 @@ function App() {
                 <div className="flex justify-between items-end mb-6">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <div className="w-1 h-6 bg-purple rounded-full"></div>
-                        {searchQuery ? `Search Results for "${searchQuery}"` : 'Featured Series'}
+                        {searchQuery ? `Search Results for "${searchQuery}"` : 'Popular Turkish Series'}
                     </h2>
                     {!searchQuery && (
-                        <a href="#" className="text-purple hover:text-white text-sm font-semibold flex items-center">
+                        <button onClick={() => {}} className="text-purple hover:text-white text-sm font-semibold flex items-center">
                             View All <ChevronRight className="w-4 h-4" />
-                        </a>
+                        </button>
                     )}
                 </div>
                 
-                {filteredSeries.length > 0 ? (
+                {isSearching ? (
+                   <div className="text-center py-20 text-gray-500">Searching TMDb...</div>
+                ) : seriesList.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                    {filteredSeries.map((series) => (
+                    {seriesList.map((series) => (
                         <DiziCard 
                             key={series.id} 
                             series={series} 
@@ -320,15 +379,15 @@ function App() {
                 )}
               </section>
 
-              {/* Ratings Preview Section (Only show if not searching) */}
+              {/* Ratings Preview Section */}
               {!searchQuery && (
                   <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2">
-                        <RatingsTable ratings={MOCK_RATINGS} series={allSeries} />
+                        <RatingsTable ratings={MOCK_RATINGS} series={seriesList} />
                     </div>
                     <div className="bg-navy-800 rounded-xl p-6 border border-white/5">
                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                            <TrendingUp className="text-purple" /> Market Share Analysis
+                            <TrendingUp className="text-purple" /> Market Share
                         </h3>
                         <div className="h-[250px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -344,9 +403,6 @@ function App() {
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
-                        <p className="text-xs text-gray-400 mt-4 text-center">
-                            *Data based on Total audience share from yesterday.
-                        </p>
                     </div>
                   </section>
               )}
@@ -355,14 +411,16 @@ function App() {
         );
 
       case 'SERIES_DETAIL':
-        const series = allSeries.find(s => s.id === selectedSeriesId);
-        if (!series) return <div className="p-8 text-center text-white">Series not found</div>;
+        // Use the detail data fetched from TMDb or fallback to list item
+        const displaySeries = detailData?.series || seriesList.find(s => s.id === selectedSeriesId);
+        
+        if (!displaySeries) return <div className="p-8 text-center text-white">Series not found</div>;
         
         return (
             <SeriesDetail 
-                series={series} 
+                series={displaySeries} 
                 onAddToWatchlist={handleAddToWatchlist}
-                isInWatchlist={watchlist.includes(series.id)}
+                isInWatchlist={watchlist.includes(displaySeries.id)}
             />
         );
 
@@ -370,7 +428,7 @@ function App() {
         return (
           <div className="container mx-auto px-4 py-12">
             <h2 className="text-3xl font-bold mb-8 text-white">Detailed Ratings</h2>
-            <RatingsTable ratings={MOCK_RATINGS} series={allSeries} />
+            <RatingsTable ratings={MOCK_RATINGS} series={seriesList} />
           </div>
         );
 
@@ -381,18 +439,10 @@ function App() {
                     <h2 className="text-3xl font-bold text-white">Broadcast Calendar</h2>
                     <span className="text-purple font-mono">Dec 2023</span>
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => (
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
                         <div key={day} className="bg-navy-800 rounded-lg p-4 min-h-[200px] border border-white/5 relative">
                             <span className="text-gray-500 font-bold uppercase text-xs">{day}</span>
-                            {i === 4 && (
-                                <div className="mt-4 bg-navy-700 p-2 rounded border-l-2 border-purple">
-                                    <div className="text-xs text-purple font-bold">20:00</div>
-                                    <div className="text-sm font-bold text-white truncate">Kızılcık Şerbeti</div>
-                                    <div className="text-[10px] text-gray-400">Show TV</div>
-                                </div>
-                            )}
                         </div>
                     ))}
                 </div>
@@ -423,17 +473,6 @@ function App() {
                         {userProfile?.bio || 'Series Addict'} • {userProfile?.location || 'Istanbul'}
                     </p>
                     
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="bg-navy-900 p-3 rounded-lg">
-                            <div className="text-xl font-bold text-white">{totalHours}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">Hours</div>
-                        </div>
-                         <div className="bg-navy-900 p-3 rounded-lg">
-                            <div className="text-xl font-bold text-white">{watchlist.length}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">Series</div>
-                        </div>
-                    </div>
-                    
                     <button 
                         onClick={handleOpenEditProfile}
                         className="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
@@ -444,41 +483,15 @@ function App() {
 
                 {/* Main Dashboard */}
                 <div className="md:col-span-3 space-y-8">
-                    {/* Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-gradient-to-br from-purple-900 to-navy-800 p-6 rounded-xl border border-white/10 relative overflow-hidden">
-                            <BarChart2 className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/5" />
-                            <h3 className="text-gray-300 text-sm font-medium">Favorite Genre</h3>
-                            <p className="text-2xl font-bold text-white mt-1">Drama</p>
-                        </div>
-                        <div className="bg-navy-800 p-6 rounded-xl border border-white/5 relative overflow-hidden">
-                             <Clock className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/5" />
-                            <h3 className="text-gray-300 text-sm font-medium">Time Watched</h3>
-                            <p className="text-2xl font-bold text-white mt-1">{totalHours}h 30m</p>
-                        </div>
-                        <div className="bg-navy-800 p-6 rounded-xl border border-white/5 relative overflow-hidden">
-                             <PlayCircle className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/5" />
-                            <h3 className="text-gray-300 text-sm font-medium">Episodes</h3>
-                            <p className="text-2xl font-bold text-white mt-1">{totalEpisodes}</p>
-                        </div>
-                    </div>
-
-                    {/* Watchlist */}
                     <div>
                         <h3 className="text-xl font-bold text-white mb-4">My Watchlist</h3>
                         {watchlist.length === 0 ? (
                              <div className="bg-navy-800 rounded-xl p-12 text-center border border-white/5 border-dashed">
-                                <p className="text-gray-400">Your watchlist is empty. Go explore!</p>
-                                <button 
-                                    onClick={() => setCurrentView('HOME')}
-                                    className="text-purple font-bold mt-2 hover:underline"
-                                >
-                                    Browse Shows
-                                </button>
+                                <p className="text-gray-400">Your watchlist is empty.</p>
                              </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {allSeries.filter(s => watchlist.includes(s.id)).map(series => (
+                                {seriesList.filter(s => watchlist.includes(s.id)).map(series => (
                                     <DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} />
                                 ))}
                             </div>
@@ -487,7 +500,6 @@ function App() {
                 </div>
             </div>
 
-            {/* EDIT PROFILE MODAL */}
             {isEditingProfile && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                     <div className="bg-navy-800 border border-white/10 rounded-xl shadow-2xl w-full max-w-md">
@@ -496,56 +508,11 @@ function App() {
                             <button onClick={() => setIsEditingProfile(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
                         </div>
                         <form onSubmit={handleSaveProfile} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1">Display Name</label>
-                                <input 
-                                    type="text" 
-                                    value={profileForm.name} 
-                                    onChange={e => setProfileForm({...profileForm, name: e.target.value})}
-                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1">Avatar URL</label>
-                                <input 
-                                    type="url" 
-                                    value={profileForm.avatar_url} 
-                                    onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})}
-                                    placeholder="https://..."
-                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
-                                />
-                                {profileForm.avatar_url && (
-                                    <div className="mt-2 flex items-center gap-2">
-                                        <img src={profileForm.avatar_url} className="w-10 h-10 rounded-full object-cover border border-white/20" alt="Preview" />
-                                        <span className="text-xs text-green-500">Preview</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1">Location</label>
-                                <input 
-                                    type="text" 
-                                    value={profileForm.location} 
-                                    onChange={e => setProfileForm({...profileForm, location: e.target.value})}
-                                    placeholder="e.g. Istanbul"
-                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1">Bio / Tagline</label>
-                                <textarea 
-                                    rows={2}
-                                    value={profileForm.bio} 
-                                    onChange={e => setProfileForm({...profileForm, bio: e.target.value})}
-                                    placeholder="Tell us about your favorite shows..."
-                                    className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2 focus:border-purple outline-none" 
-                                />
-                            </div>
-                            <div className="pt-4 flex justify-end">
-                                <button type="submit" className="bg-purple hover:bg-purple-light text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2">
-                                    <Save className="w-4 h-4" /> Save Changes
-                                </button>
-                            </div>
+                            <input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2" placeholder="Name" />
+                            <input type="text" value={profileForm.avatar_url} onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})} className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2" placeholder="Avatar URL" />
+                            <input type="text" value={profileForm.location} onChange={e => setProfileForm({...profileForm, location: e.target.value})} className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2" placeholder="Location" />
+                            <textarea value={profileForm.bio} onChange={e => setProfileForm({...profileForm, bio: e.target.value})} className="w-full bg-navy-900 border border-navy-700 text-white rounded p-2" placeholder="Bio" />
+                            <button type="submit" className="bg-purple text-white px-6 py-2 rounded-lg w-full font-bold">Save Changes</button>
                         </form>
                     </div>
                 </div>
