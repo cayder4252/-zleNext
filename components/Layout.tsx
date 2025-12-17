@@ -35,16 +35,17 @@ export const Layout: React.FC<LayoutProps> = ({
       <header className="sticky top-0 z-50 bg-navy-900/95 backdrop-blur-sm border-b border-white/10 shadow-lg">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           
-          {/* Logo */}
+          {/* Logo / Homepage Button */}
           <div 
-            className="flex items-center gap-2 cursor-pointer" 
+            className="flex items-center gap-2 cursor-pointer group" 
             onClick={() => onChangeView('HOME')}
+            title="Go to Homepage"
           >
-            <div className="w-8 h-8 bg-purple rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-purple rounded-lg flex items-center justify-center group-hover:bg-purple-light transition-colors shadow-lg shadow-purple/20">
               <PlayCircle className="text-white w-5 h-5" fill="currentColor" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-white">
-              İZLE<span className="text-purple">NEXT</span>
+            <span className="text-xl font-bold tracking-tight text-white group-hover:text-gray-100 transition-colors">
+              İZLE<span className="text-purple group-hover:text-purple-light">NEXT</span>
             </span>
           </div>
 
@@ -53,11 +54,22 @@ export const Layout: React.FC<LayoutProps> = ({
             <input
               type="text"
               placeholder="Search series, actors..."
-              className="w-full bg-navy-800 border border-navy-700 text-white px-4 py-2 pl-10 rounded-full focus:outline-none focus:border-purple transition-colors text-sm"
+              className="w-full bg-navy-800 border border-navy-700 text-white px-4 py-2 pl-10 pr-10 rounded-full focus:outline-none focus:border-purple transition-colors text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+            
+            {/* Clear Search Button */}
+            {searchQuery && (
+                <button 
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-white transition-colors"
+                    title="Clear search"
+                >
+                    <X className="w-4 h-4" />
+                </button>
+            )}
           </div>
 
           {/* Desktop Nav */}
@@ -147,7 +159,16 @@ export const Layout: React.FC<LayoutProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                 <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
+                 {searchQuery ? (
+                    <button 
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-2.5 text-gray-400"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                 ) : (
+                    <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
+                 )}
                </div>
               {navItems.map((item) => (
                 <button
@@ -213,8 +234,8 @@ export const Layout: React.FC<LayoutProps> = ({
             
             {/* Column 1: About */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-purple rounded flex items-center justify-center">
+              <div className="flex items-center gap-2 cursor-pointer group" onClick={() => onChangeView('HOME')}>
+                <div className="w-6 h-6 bg-purple rounded flex items-center justify-center group-hover:bg-purple-light transition-colors">
                   <PlayCircle className="text-white w-4 h-4" fill="currentColor" />
                 </div>
                 <span className="text-lg font-bold text-white">İZLENEXT</span>
