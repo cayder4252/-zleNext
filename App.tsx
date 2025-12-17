@@ -419,6 +419,7 @@ function App() {
         return (
             <SeriesDetail 
                 series={displaySeries} 
+                cast={detailData?.cast || []}
                 onAddToWatchlist={handleAddToWatchlist}
                 isInWatchlist={watchlist.includes(displaySeries.id)}
             />

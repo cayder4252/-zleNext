@@ -1,4 +1,4 @@
-import { Series, Actor } from '../types';
+import { Series, Actor, Episode } from '../types';
 
 const API_KEY = '85251d97249cfcc215d008c0a93cd2ac';
 const BASE_URL = 'https://api.themoviedb.org/3';
@@ -29,7 +29,31 @@ interface TmdbDetail extends TmdbItem {
   videos: { results: { key: string; type: string; site: string }[] };
   credits: { cast: { id: number; name: string; character: string; profile_path: string | null }[] };
   networks?: { name: string }[];
+  last_episode_to_air?: TmdbEpisode;
+  next_episode_to_air?: TmdbEpisode;
 }
+
+interface TmdbEpisode {
+  id: number;
+  name: string;
+  episode_number: number;
+  season_number: number;
+  air_date: string;
+  overview: string;
+  still_path: string | null;
+  vote_average: number;
+}
+
+const mapTmdbEpisode = (ep: TmdbEpisode): Episode => ({
+    id: ep.id,
+    name: ep.name,
+    episode_number: ep.episode_number,
+    season_number: ep.season_number,
+    air_date: ep.air_date,
+    overview: ep.overview,
+    still_path: ep.still_path ? `${IMAGE_BASE_URL}${ep.still_path}` : null,
+    vote_average: ep.vote_average
+});
 
 // Mapper function to convert TMDb data to your App's Series interface
 const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
@@ -52,6 +76,21 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
   // Approximate runtime for lists if not available
   const runtimeString = detailedItem.runtime ? `${detailedItem.runtime} min` : (detailedItem.episode_run_time?.[0] ? `${detailedItem.episode_run_time[0]} min` : undefined);
 
+  // Episode calculations
+  let episodesTotal = 0;
+  let episodesAired = 0;
+  let latestEpisode: Episode | undefined = undefined;
+  let nextEpisode: Episode | undefined = undefined;
+
+  if (detailedItem.last_episode_to_air) {
+      episodesAired = detailedItem.last_episode_to_air.episode_number; // Approximation using last ep number
+      episodesTotal = episodesAired + (detailedItem.next_episode_to_air ? 1 : 0); // basic logic
+      latestEpisode = mapTmdbEpisode(detailedItem.last_episode_to_air);
+  }
+  if (detailedItem.next_episode_to_air) {
+      nextEpisode = mapTmdbEpisode(detailedItem.next_episode_to_air);
+  }
+
   return {
     id: item.id.toString(),
     title_tr: title || 'Untitled',
@@ -62,14 +101,16 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
     poster_url: item.poster_path ? `${IMAGE_BASE_URL}${item.poster_path}` : 'https://via.placeholder.com/300x450?text=No+Poster',
     banner_url: item.backdrop_path ? `${IMAGE_ORIGINAL_URL}${item.backdrop_path}` : 'https://via.placeholder.com/1200x600?text=No+Image',
     rating: item.vote_average,
-    episodes_total: 0, // Not always available in basic info
-    episodes_aired: 0,
+    episodes_total: episodesTotal || 0,
+    episodes_aired: episodesAired || 0,
     is_featured: item.vote_average > 7.5,
     release_year: date ? new Date(date).getFullYear() : undefined,
     genres: genreNames,
     runtime: runtimeString,
     trailer_url: trailerUrl,
-    social_links: {} // Socials require a separate external_ids call, skipping for simplicity
+    latest_episode: latestEpisode,
+    next_episode: nextEpisode,
+    social_links: {} 
   };
 };
 
@@ -120,11 +161,11 @@ export const tmdb = {
       
       const series = mapTmdbToSeries(data);
       
-      const cast: Actor[] = data.credits.cast.slice(0, 10).map((c: any) => ({
+      const cast: Actor[] = data.credits.cast.slice(0, 15).map((c: any) => ({
         id: c.id.toString(),
         name: c.name,
-        role_type: 'Supporting', // logic to determine lead is complex, defaulting
-        photo_url: c.profile_path ? `${IMAGE_BASE_URL}${c.profile_path}` : 'https://via.placeholder.com/100x100?text=No+Img',
+        role_type: c.order < 3 ? 'Lead' : 'Supporting',
+        photo_url: c.profile_path ? `${IMAGE_BASE_URL}${c.profile_path}` : 'https://via.placeholder.com/150x150?text=No+Img',
         character_name: c.character
       }));
 

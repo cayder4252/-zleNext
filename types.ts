@@ -1,3 +1,4 @@
+
 export interface Series {
   id: string;
   title_tr: string;
@@ -24,6 +25,21 @@ export interface Series {
     facebook?: string;
     official_site?: string;
   };
+  
+  // Episode Data
+  latest_episode?: Episode;
+  next_episode?: Episode;
+}
+
+export interface Episode {
+  id: number;
+  name: string;
+  episode_number: number;
+  season_number: number;
+  air_date: string;
+  overview: string;
+  still_path: string | null;
+  vote_average?: number;
 }
 
 export interface Actor {
