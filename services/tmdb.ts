@@ -164,9 +164,9 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
 };
 
 export const tmdb = {
-  getTrendingSeries: async (): Promise<Series[]> => {
+  getTrendingSeries: async (timeWindow: 'day' | 'week' = 'day'): Promise<Series[]> => {
     try {
-      const response = await fetch(`${BASE_URL}/trending/tv/day?api_key=${API_KEY}`);
+      const response = await fetch(`${BASE_URL}/trending/tv/${timeWindow}?api_key=${API_KEY}`);
       const data = await response.json();
       return data.results.map(mapTmdbToSeries);
     } catch (error) {
@@ -175,9 +175,9 @@ export const tmdb = {
     }
   },
 
-  getTrendingMovies: async (): Promise<Series[]> => {
+  getTrendingMovies: async (timeWindow: 'day' | 'week' = 'day'): Promise<Series[]> => {
     try {
-      const response = await fetch(`${BASE_URL}/trending/movie/day?api_key=${API_KEY}`);
+      const response = await fetch(`${BASE_URL}/trending/movie/${timeWindow}?api_key=${API_KEY}`);
       const data = await response.json();
       return data.results.map(mapTmdbToSeries);
     } catch (error) {
@@ -200,7 +200,6 @@ export const tmdb = {
 
   getDetails: async (id: string, type: 'movie' | 'tv' = 'tv'): Promise<{ series: Series, cast: Actor[] }> => {
     try {
-      // Added external_ids to append_to_response to get IMDb ID
       const response = await fetch(`${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons,external_ids`);
       const data = await response.json();
       

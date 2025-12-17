@@ -3,7 +3,7 @@ import { PlayCircle, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { ViewState } from '../types';
 import { auth, db } from '../firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AuthProps {
   view: 'LOGIN' | 'REGISTER';
@@ -41,11 +41,29 @@ export const AuthPage: React.FC<AuthProps> = ({ view, onChangeView, onLogin }) =
           name: name,
           email: email,
           role: role,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          watchlist: []
         });
 
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // Ensure Firestore document exists
+        const userDocRef = doc(db, 'users', userCredential.user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+             // Create it if missing (recovery for existing auth users without docs)
+             const displayName = userCredential.user.displayName || email.split('@')[0];
+             await setDoc(userDocRef, {
+                 uid: userCredential.user.uid,
+                 name: displayName,
+                 email: email,
+                 role: role,
+                 createdAt: new Date().toISOString(),
+                 watchlist: []
+             }, { merge: true });
+        }
       }
 
       // Success
