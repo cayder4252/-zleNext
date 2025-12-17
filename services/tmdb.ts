@@ -220,6 +220,18 @@ export const tmdb = {
       throw error;
     }
   },
+  
+  getSeasonDetails: async (seriesId: string, seasonNumber: number): Promise<Episode[]> => {
+      try {
+          const response = await fetch(`${BASE_URL}/tv/${seriesId}/season/${seasonNumber}?api_key=${API_KEY}`);
+          const data = await response.json();
+          if (!data.episodes) return [];
+          return data.episodes.map(mapTmdbEpisode);
+      } catch (e) {
+          console.error("Error fetching season details", e);
+          return [];
+      }
+  },
 
   getCalendarShows: async (): Promise<Series[]> => {
     try {

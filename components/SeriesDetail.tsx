@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Series, Actor } from '../types';
+import { Series, Actor, Episode } from '../types';
+import { tmdb } from '../services/tmdb';
 import { 
   Play, 
   Plus, 
@@ -13,6 +14,8 @@ import {
   Star, 
   Share2,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Eye,
   User as UserIcon,
   MessageSquare,
@@ -30,6 +33,25 @@ interface SeriesDetailProps {
 
 export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddToWatchlist, isInWatchlist }) => {
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'EPISODES' | 'CAST' | 'REVIEWS'>('OVERVIEW');
+  const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
+  const [seasonEpisodes, setSeasonEpisodes] = useState<Record<number, Episode[]>>({});
+  const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+
+  const toggleSeason = async (seasonNumber: number) => {
+      if (expandedSeason === seasonNumber) {
+          setExpandedSeason(null);
+          return;
+      }
+      
+      setExpandedSeason(seasonNumber);
+      
+      if (!seasonEpisodes[seasonNumber]) {
+          setLoadingEpisodes(true);
+          const eps = await tmdb.getSeasonDetails(series.id, seasonNumber);
+          setSeasonEpisodes(prev => ({...prev, [seasonNumber]: eps}));
+          setLoadingEpisodes(false);
+      }
+  };
 
   return (
     <div className="bg-navy-900 min-h-screen pb-12">
@@ -237,29 +259,84 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                   {/* EPISODES TAB CONTENT */}
                   {activeTab === 'EPISODES' && (
                       <div className="animate-in fade-in duration-300 space-y-6">
-                           <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Seasons</h3>
+                           <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Seasons & Episodes</h3>
                            {series.seasons && series.seasons.length > 0 ? (
                                <div className="space-y-4">
                                    {series.seasons.map((season) => (
-                                       <div key={season.id} className="bg-navy-800 rounded-xl overflow-hidden border border-white/5 flex flex-col sm:flex-row hover:bg-navy-750 transition-colors">
-                                           <div className="w-full sm:w-32 aspect-[2/3] sm:aspect-auto">
-                                               <img 
-                                                src={season.poster_path || series.poster_url} 
-                                                alt={season.name} 
-                                                className="w-full h-full object-cover"
-                                               />
-                                           </div>
-                                           <div className="p-5 flex-1 flex flex-col justify-center">
-                                                <h4 className="text-xl font-bold text-white mb-1">{season.name}</h4>
-                                                <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
-                                                    <span className="font-bold text-purple">{season.episode_count} Episodes</span>
-                                                    <span>•</span>
-                                                    <span>{season.air_date ? new Date(season.air_date).getFullYear() : 'Unknown Year'}</span>
+                                       <div key={season.id} className="bg-navy-800 rounded-xl overflow-hidden border border-white/5 transition-colors">
+                                            {/* Season Header */}
+                                            <div 
+                                                onClick={() => toggleSeason(season.season_number)}
+                                                className="flex flex-col sm:flex-row cursor-pointer hover:bg-navy-750"
+                                            >
+                                                <div className="w-full sm:w-32 aspect-[2/3] sm:aspect-auto">
+                                                    <img 
+                                                        src={season.poster_path || series.poster_url} 
+                                                        alt={season.name} 
+                                                        className="w-full h-full object-cover"
+                                                    />
                                                 </div>
-                                                <p className="text-gray-400 text-sm line-clamp-3">
-                                                    {season.overview || `Season ${season.season_number} of ${series.title_en || series.title_tr}.`}
-                                                </p>
-                                           </div>
+                                                <div className="p-5 flex-1 flex flex-col justify-center">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <h4 className="text-xl font-bold text-white mb-1">{season.name}</h4>
+                                                                <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
+                                                                    <span className="font-bold text-purple">{season.episode_count} Episodes</span>
+                                                                    <span>•</span>
+                                                                    <span>{season.air_date ? new Date(season.air_date).getFullYear() : 'Unknown Year'}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-white/5 p-2 rounded-full">
+                                                                {expandedSeason === season.season_number ? <ChevronUp className="w-5 h-5 text-purple" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-gray-400 text-sm line-clamp-2">
+                                                            {season.overview || `Season ${season.season_number} of ${series.title_en || series.title_tr}.`}
+                                                        </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Expanded Episodes List */}
+                                            {expandedSeason === season.season_number && (
+                                                <div className="border-t border-white/5 bg-navy-900/50 p-4 animate-in slide-in-from-top-2">
+                                                    {loadingEpisodes && !seasonEpisodes[season.season_number] ? (
+                                                        <div className="text-center py-8 text-gray-400 flex items-center justify-center gap-2">
+                                                            <div className="w-4 h-4 border-2 border-purple border-t-transparent rounded-full animate-spin" />
+                                                            Loading Episodes...
+                                                        </div>
+                                                    ) : seasonEpisodes[season.season_number] && seasonEpisodes[season.season_number].length > 0 ? (
+                                                        <div className="space-y-2">
+                                                            {seasonEpisodes[season.season_number].map((ep) => (
+                                                                <div key={ep.id} className="flex gap-4 p-3 rounded hover:bg-white/5 transition-colors items-center">
+                                                                    <div className="w-32 aspect-video bg-navy-800 rounded overflow-hidden flex-shrink-0">
+                                                                        {ep.still_path ? (
+                                                                            <img src={ep.still_path} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center bg-navy-800 text-gray-600">
+                                                                                <Film className="w-6 h-6" />
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex justify-between items-baseline mb-1">
+                                                                            <h5 className="font-bold text-white truncate text-sm">
+                                                                                <span className="text-purple mr-2">{ep.episode_number}.</span> 
+                                                                                {ep.name}
+                                                                            </h5>
+                                                                            <span className="text-xs text-gray-500 whitespace-nowrap ml-2">{ep.air_date}</span>
+                                                                        </div>
+                                                                        <p className="text-gray-400 text-xs line-clamp-2">{ep.overview || "No overview available."}</p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-4 text-gray-500 text-sm italic">
+                                                            No episodes found for this season.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                        </div>
                                    ))}
                                </div>
