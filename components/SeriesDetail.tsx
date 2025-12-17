@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Series, Actor } from '../types';
 import { 
   Play, 
@@ -14,7 +14,8 @@ import {
   Share2,
   ChevronRight,
   Eye,
-  User as UserIcon
+  User as UserIcon,
+  MessageSquare
 } from 'lucide-react';
 
 interface SeriesDetailProps {
@@ -25,6 +26,8 @@ interface SeriesDetailProps {
 }
 
 export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddToWatchlist, isInWatchlist }) => {
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'EPISODES' | 'CAST' | 'REVIEWS'>('OVERVIEW');
+
   return (
     <div className="bg-navy-900 min-h-screen pb-12">
       {/* HERO SECTION */}
@@ -99,10 +102,11 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
       <div className="border-b border-white/10 bg-navy-900 sticky top-16 z-30 shadow-lg">
           <div className="container mx-auto px-4 pl-0 md:pl-[300px]"> {/* Offset for poster width */}
               <nav className="flex overflow-x-auto no-scrollbar gap-8 text-sm font-bold">
-                  {['OVERVIEW', 'EPISODES', 'CAST', 'REVIEWS'].map((tab, i) => (
+                  {(['OVERVIEW', 'EPISODES', 'CAST', 'REVIEWS'] as const).map((tab) => (
                       <button 
                         key={tab} 
-                        className={`py-4 border-b-2 whitespace-nowrap transition-colors ${i === 0 ? 'border-red-600 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+                        onClick={() => setActiveTab(tab)}
+                        className={`py-4 border-b-2 whitespace-nowrap transition-colors ${activeTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
                       >
                           {tab}
                       </button>
@@ -116,86 +120,201 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
           <div className="flex flex-col lg:flex-row gap-8">
               
               {/* LEFT COLUMN (Content) */}
-              <div className="flex-1 space-y-10">
+              <div className="flex-1 space-y-10 min-h-[500px]">
                   
-                  {/* Synopsis */}
-                  <section>
-                      <h3 className="text-white font-bold text-lg mb-3 border-l-4 border-red-600 pl-3">Synopsis</h3>
-                      <p className="text-gray-300 leading-relaxed text-sm md:text-base">
-                          {series.synopsis}
-                      </p>
-                  </section>
+                  {/* OVERVIEW TAB CONTENT */}
+                  {activeTab === 'OVERVIEW' && (
+                    <div className="animate-in fade-in duration-300 space-y-10">
+                        {/* Synopsis */}
+                        <section>
+                            <h3 className="text-white font-bold text-lg mb-3 border-l-4 border-red-600 pl-3">Synopsis</h3>
+                            <p className="text-gray-300 leading-relaxed text-sm md:text-base">
+                                {series.synopsis}
+                            </p>
+                        </section>
 
-                  {/* Latest Episodes */}
-                  {series.latest_episode && (
-                    <section>
-                        <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Latest Episode</h3>
-                        <div className="bg-navy-800 rounded-lg overflow-hidden border border-white/5 flex flex-col md:flex-row">
-                            <div className="md:w-64 relative aspect-video md:aspect-auto">
-                                <img 
-                                    src={series.latest_episode.still_path || series.banner_url} 
-                                    alt="Episode" 
-                                    className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                    <PlayCircleIcon className="w-10 h-10 text-white opacity-80" />
-                                </div>
-                            </div>
-                            <div className="p-4 flex-1">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <h4 className="text-white font-bold text-lg">{series.latest_episode.name || `Episode ${series.latest_episode.episode_number}`}</h4>
-                                        <p className="text-purple text-xs font-bold">Season {series.latest_episode.season_number} • Episode {series.latest_episode.episode_number}</p>
+                        {/* Latest Episodes Snippet */}
+                        {series.latest_episode && (
+                            <section>
+                                <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Latest Episode</h3>
+                                <div className="bg-navy-800 rounded-lg overflow-hidden border border-white/5 flex flex-col md:flex-row">
+                                    <div className="md:w-64 relative aspect-video md:aspect-auto">
+                                        <img 
+                                            src={series.latest_episode.still_path || series.banner_url} 
+                                            alt="Episode" 
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                            <PlayCircleIcon className="w-10 h-10 text-white opacity-80" />
+                                        </div>
                                     </div>
-                                    <span className="text-gray-400 text-xs bg-white/5 px-2 py-1 rounded">{series.latest_episode.air_date}</span>
+                                    <div className="p-4 flex-1">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h4 className="text-white font-bold text-lg">{series.latest_episode.name || `Episode ${series.latest_episode.episode_number}`}</h4>
+                                                <p className="text-purple text-xs font-bold">Season {series.latest_episode.season_number} • Episode {series.latest_episode.episode_number}</p>
+                                            </div>
+                                            <span className="text-gray-400 text-xs bg-white/5 px-2 py-1 rounded">{series.latest_episode.air_date}</span>
+                                        </div>
+                                        <p className="text-gray-400 text-sm line-clamp-3">
+                                            {series.latest_episode.overview || "No overview available for this episode."}
+                                        </p>
+                                    </div>
                                 </div>
-                                <p className="text-gray-400 text-sm line-clamp-3">
-                                    {series.latest_episode.overview || "No overview available for this episode."}
-                                </p>
-                            </div>
-                        </div>
-                    </section>
+                            </section>
+                        )}
+
+                        {/* Trailer */}
+                        {series.trailer_url && (
+                            <section>
+                                <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Videos</h3>
+                                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-lg">
+                                    <iframe 
+                                        src={series.trailer_url.replace('watch?v=', 'embed/')} 
+                                        title="Trailer" 
+                                        className="w-full h-full" 
+                                        frameBorder="0" 
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                        allowFullScreen 
+                                    />
+                                </div>
+                            </section>
+                        )}
+                        
+                        {/* Featured Cast Snippet */}
+                         {cast.length > 0 && (
+                            <section>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-white font-bold text-lg border-l-4 border-red-600 pl-3">Top Cast</h3>
+                                    <button onClick={() => setActiveTab('CAST')} className="text-xs text-purple font-bold hover:underline">View All</button>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    {cast.slice(0, 4).map((actor) => (
+                                        <div key={actor.id} className="bg-navy-800 rounded-lg p-2 flex items-center gap-3">
+                                            <img src={actor.photo_url} alt={actor.name} className="w-10 h-10 rounded-full object-cover" />
+                                            <div className="overflow-hidden">
+                                                <div className="text-sm font-bold text-white truncate">{actor.name}</div>
+                                                <div className="text-xs text-gray-400 truncate">{actor.character_name}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                         )}
+                    </div>
                   )}
 
-                  {/* Cast */}
-                  {cast.length > 0 && (
-                      <section>
-                          <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Cast & Crew</h3>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                               {cast.map((actor) => (
-                                   <div key={actor.id} className="group bg-navy-800 rounded-lg overflow-hidden hover:bg-navy-700 transition-colors cursor-pointer">
-                                       <div className="aspect-[2/3] overflow-hidden">
-                                           <img 
-                                            src={actor.photo_url} 
-                                            alt={actor.name} 
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                                           />
+                  {/* EPISODES TAB CONTENT */}
+                  {activeTab === 'EPISODES' && (
+                      <div className="animate-in fade-in duration-300 space-y-6">
+                           <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Seasons</h3>
+                           {series.seasons && series.seasons.length > 0 ? (
+                               <div className="space-y-4">
+                                   {series.seasons.map((season) => (
+                                       <div key={season.id} className="bg-navy-800 rounded-xl overflow-hidden border border-white/5 flex flex-col sm:flex-row hover:bg-navy-750 transition-colors">
+                                           <div className="w-full sm:w-32 aspect-[2/3] sm:aspect-auto">
+                                               <img 
+                                                src={season.poster_path || series.poster_url} 
+                                                alt={season.name} 
+                                                className="w-full h-full object-cover"
+                                               />
+                                           </div>
+                                           <div className="p-5 flex-1 flex flex-col justify-center">
+                                                <h4 className="text-xl font-bold text-white mb-1">{season.name}</h4>
+                                                <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
+                                                    <span className="font-bold text-purple">{season.episode_count} Episodes</span>
+                                                    <span>•</span>
+                                                    <span>{season.air_date ? new Date(season.air_date).getFullYear() : 'Unknown Year'}</span>
+                                                </div>
+                                                <p className="text-gray-400 text-sm line-clamp-3">
+                                                    {season.overview || `Season ${season.season_number} of ${series.title_en || series.title_tr}.`}
+                                                </p>
+                                           </div>
                                        </div>
-                                       <div className="p-3">
-                                           <div className="text-sm font-bold text-white leading-tight mb-1 truncate">{actor.name}</div>
-                                           <div className="text-xs text-gray-400 truncate">{actor.character_name}</div>
-                                       </div>
-                                   </div>
-                               ))}
-                          </div>
-                      </section>
+                                   ))}
+                               </div>
+                           ) : (
+                               <div className="text-center py-20 text-gray-500 bg-navy-800 rounded-xl border border-white/5 border-dashed">
+                                   No season information available.
+                               </div>
+                           )}
+                      </div>
                   )}
 
-                  {/* Trailer */}
-                  {series.trailer_url && (
-                      <section>
-                          <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Videos</h3>
-                          <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-lg">
-                              <iframe 
-                                src={series.trailer_url.replace('watch?v=', 'embed/')} 
-                                title="Trailer" 
-                                className="w-full h-full" 
-                                frameBorder="0" 
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                allowFullScreen 
-                              />
-                          </div>
-                      </section>
+                  {/* CAST TAB CONTENT */}
+                  {activeTab === 'CAST' && (
+                      <div className="animate-in fade-in duration-300 space-y-6">
+                           <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Full Cast & Crew</h3>
+                           {cast.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4">
+                                    {cast.map((actor) => (
+                                        <div key={actor.id} className="group bg-navy-800 rounded-lg overflow-hidden hover:bg-navy-700 transition-colors cursor-pointer border border-white/5">
+                                            <div className="aspect-[2/3] overflow-hidden">
+                                                <img 
+                                                    src={actor.photo_url} 
+                                                    alt={actor.name} 
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                                />
+                                            </div>
+                                            <div className="p-3">
+                                                <div className="text-sm font-bold text-white leading-tight mb-1 truncate">{actor.name}</div>
+                                                <div className="text-xs text-gray-400 truncate">{actor.character_name}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                           ) : (
+                                <div className="text-center py-20 text-gray-500 bg-navy-800 rounded-xl border border-white/5 border-dashed">
+                                    No cast information available.
+                                </div>
+                           )}
+                      </div>
+                  )}
+
+                  {/* REVIEWS TAB CONTENT */}
+                  {activeTab === 'REVIEWS' && (
+                      <div className="animate-in fade-in duration-300 space-y-6">
+                          <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">User Reviews</h3>
+                          {series.reviews && series.reviews.length > 0 ? (
+                              <div className="space-y-4">
+                                  {series.reviews.map((review) => (
+                                      <div key={review.id} className="bg-navy-800 p-6 rounded-xl border border-white/5">
+                                          <div className="flex justify-between items-start mb-4">
+                                              <div className="flex items-center gap-3">
+                                                  <div className="w-10 h-10 rounded-full bg-purple flex items-center justify-center text-white font-bold overflow-hidden">
+                                                      {review.avatar_path ? (
+                                                          <img src={review.avatar_path} alt={review.author} className="w-full h-full object-cover" />
+                                                      ) : (
+                                                          review.author.charAt(0).toUpperCase()
+                                                      )}
+                                                  </div>
+                                                  <div>
+                                                      <div className="font-bold text-white text-sm">A Review by {review.author}</div>
+                                                      <div className="text-xs text-gray-500">
+                                                          Written on {new Date(review.created_at).toLocaleDateString()}
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                              {review.rating && (
+                                                  <div className="bg-navy-900 border border-white/10 px-3 py-1 rounded-lg flex items-center gap-1">
+                                                      <Star className="w-3 h-3 text-yellow-500 fill-current" />
+                                                      <span className="text-white font-bold text-sm">{review.rating}</span>
+                                                  </div>
+                                              )}
+                                          </div>
+                                          <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                              {review.content}
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          ) : (
+                              <div className="text-center py-20 text-gray-500 bg-navy-800 rounded-xl border border-white/5 border-dashed flex flex-col items-center gap-4">
+                                  <MessageSquare className="w-12 h-12 text-gray-600" />
+                                  <p>No reviews available yet for this series.</p>
+                              </div>
+                          )}
+                      </div>
                   )}
 
               </div>

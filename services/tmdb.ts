@@ -1,4 +1,4 @@
-import { Series, Actor, Episode } from '../types';
+import { Series, Actor, Episode, Season, Review } from '../types';
 
 const API_KEY = '85251d97249cfcc215d008c0a93cd2ac';
 const BASE_URL = 'https://api.themoviedb.org/3';
@@ -19,6 +19,7 @@ interface TmdbItem {
   release_date?: string;
   first_air_date?: string;
   genre_ids: number[];
+  origin_country?: string[];
 }
 
 interface TmdbDetail extends TmdbItem {
@@ -31,6 +32,33 @@ interface TmdbDetail extends TmdbItem {
   networks?: { name: string }[];
   last_episode_to_air?: TmdbEpisode;
   next_episode_to_air?: TmdbEpisode;
+  seasons?: TmdbSeason[];
+  reviews?: { results: TmdbReview[] };
+}
+
+interface TmdbSeason {
+  air_date: string;
+  episode_count: number;
+  id: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  season_number: number;
+}
+
+interface TmdbReview {
+  author: string;
+  author_details: {
+    name: string;
+    username: string;
+    avatar_path: string | null;
+    rating: number | null;
+  };
+  content: string;
+  created_at: string;
+  id: string;
+  updated_at: string;
+  url: string;
 }
 
 interface TmdbEpisode {
@@ -55,16 +83,14 @@ const mapTmdbEpisode = (ep: TmdbEpisode): Episode => ({
     vote_average: ep.vote_average
 });
 
-// Mapper function to convert TMDb data to your App's Series interface
 const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
   const isMovie = 'title' in item;
   const title = isMovie ? item.title : item.name;
   const originalTitle = isMovie ? item.original_title : item.original_name;
   const date = isMovie ? item.release_date : item.first_air_date;
   
-  // Default values for detailed fields that might be missing in list view
   const detailedItem = item as TmdbDetail;
-  const network = detailedItem.networks && detailedItem.networks.length > 0 ? detailedItem.networks[0].name : 'TMDb';
+  const network = detailedItem.networks && detailedItem.networks.length > 0 ? detailedItem.networks[0].name : (item.origin_country?.[0] || 'TMDb');
   
   let trailerUrl = undefined;
   if (detailedItem.videos && detailedItem.videos.results) {
@@ -73,23 +99,42 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
   }
 
   const genreNames = detailedItem.genres ? detailedItem.genres.map(g => g.name) : [];
-  // Approximate runtime for lists if not available
   const runtimeString = detailedItem.runtime ? `${detailedItem.runtime} min` : (detailedItem.episode_run_time?.[0] ? `${detailedItem.episode_run_time[0]} min` : undefined);
 
-  // Episode calculations
   let episodesTotal = 0;
   let episodesAired = 0;
   let latestEpisode: Episode | undefined = undefined;
   let nextEpisode: Episode | undefined = undefined;
 
   if (detailedItem.last_episode_to_air) {
-      episodesAired = detailedItem.last_episode_to_air.episode_number; // Approximation using last ep number
-      episodesTotal = episodesAired + (detailedItem.next_episode_to_air ? 1 : 0); // basic logic
+      episodesAired = detailedItem.last_episode_to_air.episode_number; 
+      episodesTotal = episodesAired + (detailedItem.next_episode_to_air ? 1 : 0);
       latestEpisode = mapTmdbEpisode(detailedItem.last_episode_to_air);
   }
   if (detailedItem.next_episode_to_air) {
       nextEpisode = mapTmdbEpisode(detailedItem.next_episode_to_air);
   }
+
+  // Map Seasons
+  const seasons: Season[] = detailedItem.seasons ? detailedItem.seasons.map(s => ({
+      id: s.id,
+      name: s.name,
+      season_number: s.season_number,
+      episode_count: s.episode_count,
+      air_date: s.air_date,
+      poster_path: s.poster_path ? `${IMAGE_BASE_URL}${s.poster_path}` : undefined,
+      overview: s.overview
+  })).filter(s => s.season_number > 0) : []; // Filter out season 0 (specials) usually
+
+  // Map Reviews
+  const reviews: Review[] = detailedItem.reviews ? detailedItem.reviews.results.map(r => ({
+      id: r.id,
+      author: r.author,
+      content: r.content,
+      created_at: r.created_at,
+      rating: r.author_details.rating || undefined,
+      avatar_path: r.author_details.avatar_path ? (r.author_details.avatar_path.startsWith('/https') ? r.author_details.avatar_path.substring(1) : `${IMAGE_BASE_URL}${r.author_details.avatar_path}`) : undefined
+  })) : [];
 
   return {
     id: item.id.toString(),
@@ -103,27 +148,27 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
     rating: item.vote_average,
     episodes_total: episodesTotal || 0,
     episodes_aired: episodesAired || 0,
-    is_featured: item.vote_average > 7.5,
+    is_featured: item.vote_average > 8.0, 
     release_year: date ? new Date(date).getFullYear() : undefined,
     genres: genreNames,
     runtime: runtimeString,
     trailer_url: trailerUrl,
     latest_episode: latestEpisode,
     next_episode: nextEpisode,
+    seasons: seasons,
+    reviews: reviews,
     social_links: {} 
   };
 };
 
 export const tmdb = {
-  // A. Fetch Trending (Using Discover for Turkish Dramas to fit the app theme, falling back to trending)
-  getTurkishSeries: async (): Promise<Series[]> => {
+  getTrendingSeries: async (): Promise<Series[]> => {
     try {
-      // Prioritize Turkish TV shows for "İzleNext"
-      const response = await fetch(`${BASE_URL}/discover/tv?api_key=${API_KEY}&with_original_language=tr&sort_by=popularity.desc`);
+      const response = await fetch(`${BASE_URL}/trending/tv/day?api_key=${API_KEY}`);
       const data = await response.json();
       return data.results.map(mapTmdbToSeries);
     } catch (error) {
-      console.error("Error fetching Turkish series:", error);
+      console.error("Error fetching trending series:", error);
       return [];
     }
   },
@@ -139,12 +184,10 @@ export const tmdb = {
     }
   },
 
-  // B. Search
   search: async (query: string): Promise<Series[]> => {
     try {
       const response = await fetch(`${BASE_URL}/search/multi?api_key=${API_KEY}&query=${encodeURIComponent(query)}`);
       const data = await response.json();
-      // Filter out 'person' results
       const results = data.results.filter((item: any) => item.media_type !== 'person');
       return results.map(mapTmdbToSeries);
     } catch (error) {
@@ -153,15 +196,15 @@ export const tmdb = {
     }
   },
 
-  // C. Get Details
   getDetails: async (id: string, type: 'movie' | 'tv' = 'tv'): Promise<{ series: Series, cast: Actor[] }> => {
     try {
-      const response = await fetch(`${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=credits,videos`);
+      // Added reviews to append_to_response
+      const response = await fetch(`${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons`);
       const data = await response.json();
       
       const series = mapTmdbToSeries(data);
       
-      const cast: Actor[] = data.credits.cast.slice(0, 15).map((c: any) => ({
+      const cast: Actor[] = data.credits.cast.slice(0, 20).map((c: any) => ({
         id: c.id.toString(),
         name: c.name,
         role_type: c.order < 3 ? 'Lead' : 'Supporting',
@@ -173,6 +216,25 @@ export const tmdb = {
     } catch (error) {
       console.error("Error fetching details:", error);
       throw error;
+    }
+  },
+
+  getCalendarShows: async (): Promise<Series[]> => {
+    try {
+        const response = await fetch(`${BASE_URL}/tv/on_the_air?api_key=${API_KEY}`);
+        const data = await response.json();
+        const initialList = data.results.slice(0, 14); 
+
+        const detailPromises = initialList.map((item: any) => 
+            fetch(`${BASE_URL}/tv/${item.id}?api_key=${API_KEY}`).then(res => res.json())
+        );
+
+        const detailsData = await Promise.all(detailPromises);
+        
+        return detailsData.map(mapTmdbToSeries);
+    } catch (error) {
+        console.error("Error fetching calendar data:", error);
+        return [];
     }
   }
 };

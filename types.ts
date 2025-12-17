@@ -29,6 +29,8 @@ export interface Series {
   // Episode Data
   latest_episode?: Episode;
   next_episode?: Episode;
+  seasons?: Season[];
+  reviews?: Review[];
 }
 
 export interface Episode {
@@ -40,6 +42,25 @@ export interface Episode {
   overview: string;
   still_path: string | null;
   vote_average?: number;
+}
+
+export interface Season {
+  id: number;
+  name: string;
+  season_number: number;
+  episode_count: number;
+  air_date?: string;
+  poster_path?: string;
+  overview?: string;
+}
+
+export interface Review {
+  id: string;
+  author: string;
+  content: string;
+  created_at: string;
+  rating?: number;
+  avatar_path?: string;
 }
 
 export interface Actor {

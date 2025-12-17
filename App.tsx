@@ -21,7 +21,8 @@ import {
     PlayCircle,
     Edit2,
     Save,
-    X
+    X,
+    Bell
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -40,6 +41,7 @@ function App() {
 
   // Data State
   const [seriesList, setSeriesList] = useState<Series[]>([]);
+  const [calendarData, setCalendarData] = useState<Series[]>([]);
   const [loadingSeries, setLoadingSeries] = useState(true);
   
   // Detail View Data
@@ -86,7 +88,7 @@ function App() {
     return () => unsub;
   }, [user?.id]);
 
-  // Initial Data Fetch (TMDb + Firestore fallback)
+  // Initial Data Fetch (TMDb Global Trending + Firestore fallback)
   useEffect(() => {
     const fetchData = async () => {
       setLoadingSeries(true);
@@ -99,13 +101,11 @@ function App() {
          }, () => resolve([]));
       });
 
-      // 2. Fetch from TMDb (Turkish Dramas to populate the home page)
-      const tmdbPromise = tmdb.getTurkishSeries();
+      // 2. Fetch from TMDb (Global Trending)
+      const tmdbPromise = tmdb.getTrendingSeries();
 
       try {
         const [firestoreData, tmdbData] = await Promise.all([firestorePromise, tmdbPromise]);
-        // Combine them, prioritizing Firestore if IDs conflict (rare with numeric TMDb IDs vs string Firestore IDs)
-        // If Firestore is empty, use TMDb. If TMDb fails, use Mock.
         let combined = [...firestoreData, ...tmdbData];
         
         if (combined.length === 0) {
@@ -124,6 +124,13 @@ function App() {
     fetchData();
   }, []);
 
+  // Fetch Calendar Data when view changes to CALENDAR
+  useEffect(() => {
+    if (currentView === 'CALENDAR' && calendarData.length === 0) {
+        tmdb.getCalendarShows().then(data => setCalendarData(data));
+    }
+  }, [currentView]);
+
   // Handle Search using TMDb
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -133,10 +140,8 @@ function App() {
         setSeriesList(results);
         setIsSearching(false);
       } else if (searchQuery.trim().length === 0 && !loadingSeries) {
-        // Reset to default list (re-fetch generic list)
-        // For simplicity, we just re-call getTurkishSeries here or rely on the previous state if we managed it separately.
-        // Reloading page logic or storing 'initialList' is better, but let's just quick fetch:
-        const homeData = await tmdb.getTurkishSeries();
+        // Reset to default list
+        const homeData = await tmdb.getTrendingSeries();
         setSeriesList(homeData);
       }
     }, 500);
@@ -219,21 +224,13 @@ function App() {
       }
   };
 
-  // Updated Click Handler to Fetch Details from TMDb
   const handleSeriesClick = async (id: string) => {
-      // Check if it's a numeric ID (TMDb) or string (Firebase)
-      // Assuming regex or simple check. TMDb IDs are numeric.
       const isTmdbId = /^\d+$/.test(id);
-      
       if (isTmdbId) {
           try {
-              // Try fetching as TV first (since it's a drama app), fallback to movie if needed or handle generic
-              // For robustness, we can guess or try one. Let's assume TV for 'turkish dramas' or use what the search result type was if we stored it.
-              // We'll try TV first.
               const data = await tmdb.getDetails(id, 'tv');
               setDetailData(data);
           } catch (e) {
-              // If TV fails, try movie
                try {
                    const data = await tmdb.getDetails(id, 'movie');
                    setDetailData(data);
@@ -242,7 +239,6 @@ function App() {
                }
           }
       } else {
-          // Firestore Data
           const localSeries = seriesList.find(s => s.id === id);
           if (localSeries) {
               setDetailData({ series: localSeries, cast: [] });
@@ -254,16 +250,30 @@ function App() {
       window.scrollTo(0, 0); 
   };
 
-  // Filter Logic is now mostly handled by the search effect updating the list, 
-  // but we can still filter locally if needed.
-  // We use seriesList directly.
   const featuredShow = seriesList.find(s => s.is_featured) || seriesList[0];
   const watchlist = userProfile?.watchlist || [];
-  // For stats calculation, using all series in list might not cover everything in watchlist if pagination existed,
-  // but for now it's fine.
   const watchedSeries = seriesList.filter(s => watchlist.includes(s.id));
   const totalEpisodes = watchedSeries.reduce((acc, curr) => acc + (curr.episodes_aired || 0), 0);
   const totalHours = Math.round(totalEpisodes * 2.2); 
+
+  // Helpers for Calendar
+  const getDayName = (dateStr?: string) => {
+      if (!dateStr) return 'TBA';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+  };
+  
+  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  
+  // Group Calendar Data by Day
+  const calendarGrouped = calendarData.reduce((acc, series) => {
+      if (series.next_episode?.air_date) {
+          const day = new Date(series.next_episode.air_date).toLocaleDateString('en-US', { weekday: 'short' });
+          if (!acc[day]) acc[day] = [];
+          acc[day].push(series);
+      }
+      return acc;
+  }, {} as Record<string, Series[]>);
 
   // 1. Admin Logic
   if (currentView === 'ADMIN') {
@@ -321,6 +331,10 @@ function App() {
                     <h1 className="text-4xl md:text-6xl font-bold text-white leading-tight">
                         {featuredShow.title_tr}
                     </h1>
+                    <div className="flex items-center gap-2 text-sm text-gray-300">
+                        <span className="px-2 py-0.5 border border-gray-500 rounded text-xs">{featuredShow.network}</span>
+                        <span>{featuredShow.genres?.slice(0, 3).join(', ')}</span>
+                    </div>
                     <p className="text-gray-300 text-lg line-clamp-2 md:line-clamp-3">
                         {featuredShow.synopsis}
                     </p>
@@ -350,7 +364,7 @@ function App() {
                 <div className="flex justify-between items-end mb-6">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <div className="w-1 h-6 bg-purple rounded-full"></div>
-                        {searchQuery ? `Search Results for "${searchQuery}"` : 'Popular Turkish Series'}
+                        {searchQuery ? `Search Results for "${searchQuery}"` : 'Global Trending (K-Drama, US, TR)'}
                     </h2>
                     {!searchQuery && (
                         <button onClick={() => {}} className="text-purple hover:text-white text-sm font-semibold flex items-center">
@@ -411,11 +425,8 @@ function App() {
         );
 
       case 'SERIES_DETAIL':
-        // Use the detail data fetched from TMDb or fallback to list item
         const displaySeries = detailData?.series || seriesList.find(s => s.id === selectedSeriesId);
-        
         if (!displaySeries) return <div className="p-8 text-center text-white">Series not found</div>;
-        
         return (
             <SeriesDetail 
                 series={displaySeries} 
@@ -437,16 +448,70 @@ function App() {
         return (
             <div className="container mx-auto px-4 py-12">
                 <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-3xl font-bold text-white">Broadcast Calendar</h2>
-                    <span className="text-purple font-mono">Dec 2023</span>
+                    <div>
+                        <h2 className="text-3xl font-bold text-white">Broadcast Calendar</h2>
+                        <p className="text-gray-400 text-sm mt-1">Ongoing dramas airing this week (Global)</p>
+                    </div>
+                    <span className="text-purple font-mono bg-purple/10 px-3 py-1 rounded">Next 7 Days</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                        <div key={day} className="bg-navy-800 rounded-lg p-4 min-h-[200px] border border-white/5 relative">
-                            <span className="text-gray-500 font-bold uppercase text-xs">{day}</span>
-                        </div>
-                    ))}
-                </div>
+                
+                {calendarData.length === 0 ? (
+                    <div className="text-center py-20">
+                        <div className="w-10 h-10 border-4 border-purple border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-gray-400">Loading schedule...</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                        {daysOfWeek.map((day) => {
+                            const showsForDay = calendarGrouped[day] || [];
+                            return (
+                                <div key={day} className="bg-navy-800 rounded-lg p-4 min-h-[300px] border border-white/5 flex flex-col gap-3">
+                                    <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
+                                        <span className="text-gray-500 font-bold uppercase text-xs">{day}</span>
+                                        <span className="text-xs text-gray-600">{showsForDay.length} Shows</span>
+                                    </div>
+                                    
+                                    {showsForDay.map(show => (
+                                        <div key={show.id} onClick={() => handleSeriesClick(show.id)} className="bg-navy-700 p-3 rounded group hover:bg-navy-600 transition-colors cursor-pointer relative">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <div className="text-xs text-purple font-bold">
+                                                    {show.next_episode?.air_date.split('-')[1]}/{show.next_episode?.air_date.split('-')[2]}
+                                                </div>
+                                                <button 
+                                                    title="Set Reminder"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        alert(`Reminder set for ${show.title_tr}!`);
+                                                    }}
+                                                    className="text-gray-500 hover:text-white"
+                                                >
+                                                    <Bell className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                            <div className="text-sm font-bold text-white leading-tight mb-1 line-clamp-2 group-hover:text-purple">
+                                                {show.title_tr}
+                                            </div>
+                                            <div className="flex justify-between items-end">
+                                                <div className="text-[10px] text-gray-400 truncate max-w-[80px]">
+                                                    {show.network}
+                                                </div>
+                                                {show.next_episode && (
+                                                    <div className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-gray-300">
+                                                        S{show.next_episode.season_number}E{show.next_episode.episode_number}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    
+                                    {showsForDay.length === 0 && (
+                                        <div className="text-[10px] text-gray-600 text-center py-4 italic">No shows airing</div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         );
 
