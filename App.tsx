@@ -39,10 +39,15 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
+  // Series List now acts as the primary display list for Home/Search/Browse
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [calendarData, setCalendarData] = useState<Series[]>([]);
   const [loadingSeries, setLoadingSeries] = useState(true);
   
+  // Specific state for "Browse" mode (e.g., when clicking a genre)
+  const [browseTitle, setBrowseTitle] = useState<string | null>(null);
+  const [isBrowsing, setIsBrowsing] = useState(false);
+
   const [detailData, setDetailData] = useState<{ series: Series, cast: Actor[] } | null>(null);
 
   const [profileForm, setProfileForm] = useState({
@@ -126,10 +131,14 @@ function App() {
     const delayDebounceFn = setTimeout(async () => {
       if (searchQuery.trim().length > 2) {
         setIsSearching(true);
+        // Reset browse state when searching
+        setIsBrowsing(false);
+        setBrowseTitle(null);
         const results = await tmdb.search(searchQuery);
         setSeriesList(results);
         setIsSearching(false);
-      } else if (searchQuery.trim().length === 0 && !loadingSeries) {
+      } else if (searchQuery.trim().length === 0 && !loadingSeries && !isBrowsing) {
+        // Only reset to home data if NOT browsing a category
         const homeData = await tmdb.getTrendingSeries();
         setSeriesList(homeData);
       }
@@ -155,6 +164,31 @@ function App() {
     }
   };
 
+  const handleBrowse = async (title: string, endpoint: string, params: string) => {
+      setLoadingSeries(true);
+      setSearchQuery(''); // Clear search when browsing via menu
+      setBrowseTitle(title);
+      setIsBrowsing(true);
+      
+      try {
+          const results = await tmdb.getDiscoveryContent(endpoint, params);
+          setSeriesList(results);
+      } catch (e) {
+          console.error("Browse fetch error", e);
+      } finally {
+          setLoadingSeries(false);
+      }
+  };
+
+  const handleClearBrowse = async () => {
+      setIsBrowsing(false);
+      setBrowseTitle(null);
+      setLoadingSeries(true);
+      const homeData = await tmdb.getTrendingSeries();
+      setSeriesList(homeData);
+      setLoadingSeries(false);
+  };
+
   const handleAddToWatchlist = async (id: string) => {
     if (!user) {
         setCurrentView('LOGIN');
@@ -177,13 +211,12 @@ function App() {
   };
 
   const handleOpenEditProfile = () => {
-    // Merge potential sources to ensure fields are populated
     const displayUser = user ? { ...user, ...userProfile } : null;
     setProfileForm({
         name: displayUser?.name || '',
         avatar_url: displayUser?.avatar_url || '',
-        location: userProfile?.location || '', // Only in Firestore
-        bio: userProfile?.bio || '' // Only in Firestore
+        location: userProfile?.location || '', 
+        bio: userProfile?.bio || '' 
     });
     setIsEditingProfile(true);
   };
@@ -206,7 +239,6 @@ function App() {
                   displayName: profileForm.name,
                   photoURL: profileForm.avatar_url
               });
-              // Optimistically update local state to reflect changes immediately
               setUser(prev => prev ? ({ ...prev, name: profileForm.name, avatar_url: profileForm.avatar_url }) : null);
           }
           setIsEditingProfile(false);
@@ -220,22 +252,16 @@ function App() {
       const isTmdbId = /^\d+$/.test(id);
       if (isTmdbId) {
           try {
-              // 1. Fetch from TMDb
               let data = await tmdb.getDetails(id, 'tv');
-              
-              // 2. Fetch extra data from OMDb if IMDb ID exists
               if (data.series.imdb_id) {
                   const omdbData = await omdb.getDetails(data.series.imdb_id);
                   if (omdbData) {
-                      // Merge OMDb data
                       data.series = { ...data.series, ...omdbData };
                   }
               }
-
               setDetailData(data);
           } catch (e) {
                try {
-                   // Retry as Movie
                    let data = await tmdb.getDetails(id, 'movie');
                    if (data.series.imdb_id) {
                       const omdbData = await omdb.getDetails(data.series.imdb_id);
@@ -262,14 +288,7 @@ function App() {
 
   const featuredShow = seriesList.find(s => s.is_featured) || seriesList[0];
   const watchlist = userProfile?.watchlist || [];
-  // Merge Auth user and Firestore profile to prevent data flicker/loss
   const displayUser = user ? { ...user, ...userProfile } : null;
-  
-  const getDayName = (dateStr?: string) => {
-      if (!dateStr) return 'TBA';
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-  };
   
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   
@@ -284,32 +303,25 @@ function App() {
 
   // CATEGORIES CONFIGURATION
   const CATEGORIES = [
-    // Group A: Global Hits
     { title: "Chinese Wuxia/Xianxia", endpoint: "discover/tv", params: "with_original_language=zh&with_genres=18,10759" },
     { title: "Trending Anime", endpoint: "discover/tv", params: "with_original_language=ja&with_genres=16&sort_by=popularity.desc" },
     { title: "European Noir", endpoint: "discover/tv", params: "with_origin_country=SE|NO|DK|FR&with_genres=80" },
     { title: "Spanish Language Hits", endpoint: "discover/tv", params: "with_original_language=es&sort_by=popularity.desc" },
-    
-    // Group B: Binge 2025
     { title: "Most Anticipated 2025", endpoint: "discover/movie", params: "primary_release_date.gte=2025-01-01&sort_by=popularity.desc" },
     { title: "Certified Fresh", endpoint: "discover/movie", params: "vote_average.gte=8&vote_count.gte=100" },
     { title: "Hidden Gems", endpoint: "discover/movie", params: "vote_average.gte=7.5&vote_count.lte=500&vote_count.gte=50" },
     { title: "New on Streaming", endpoint: "discover/movie", params: "with_watch_monetization_types=flatrate&watch_region=US" },
-
-    // Group C: Moods
     { title: "Edge-of-Your-Seat Thrillers", endpoint: "discover/movie", params: "with_genres=53&vote_average.gte=7" },
     { title: "Mind-Bending Sci-Fi", endpoint: "discover/movie", params: "with_genres=878&sort_by=vote_average.desc&vote_count.gte=200" },
     { title: "True Crime & Biopics", endpoint: "discover/movie", params: "with_genres=80,36" },
     { title: "Supernatural Horror", endpoint: "discover/movie", params: "with_genres=27&sort_by=popularity.desc" },
     { title: "Wholesome Family Night", endpoint: "discover/movie", params: "with_genres=10751,16&sort_by=popularity.desc" },
-
-    // Group D: Social & Niche
     { title: "Award Season Winners", endpoint: "discover/movie", params: "certification_country=US&certification=R&vote_average.gte=8&sort_by=vote_count.desc" },
     { title: "Indie Spotlight", endpoint: "discover/movie", params: "with_runtime.lte=100&vote_average.gte=7" },
-    { title: "Revenge Dramas", endpoint: "discover/tv", params: "with_genres=18,80&sort_by=popularity.desc" }, // Generic popular crime dramas
+    { title: "Revenge Dramas", endpoint: "discover/tv", params: "with_genres=18,80&sort_by=popularity.desc" }, 
     { title: "Post-Apocalyptic Worlds", endpoint: "discover/movie", params: "with_genres=878,28&sort_by=popularity.desc" },
     { title: "Modern RomComs", endpoint: "discover/movie", params: "with_genres=10749,35&primary_release_date.gte=2023-01-01" },
-    { title: "Sports Dramas", endpoint: "discover/movie", params: "with_genres=18&with_keywords=6075" }, // 6075 is 'sport' keyword
+    { title: "Sports Dramas", endpoint: "discover/movie", params: "with_genres=18&with_keywords=6075" },
     { title: "IMDb Top 250", endpoint: "movie/top_rated", params: "page=1" },
   ];
 
@@ -346,7 +358,14 @@ function App() {
       case 'HOME':
         return (
           <div className="animate-in fade-in duration-500">
-            {!searchQuery && featuredShow && (
+            {/* 
+                LOGIC:
+                1. If Searching: Show Search Results
+                2. If Browsing (via Menu): Show Browse Results Header & Grid
+                3. Default: Show Hero + Grid + Categories
+            */}
+            
+            {!searchQuery && !isBrowsing && featuredShow && (
               <div className="relative h-[500px] md:h-[600px] w-full overflow-hidden">
                 <div className="absolute inset-0">
                     <img 
@@ -398,18 +417,30 @@ function App() {
                 <div className="flex justify-between items-end mb-6">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <div className="w-1 h-6 bg-purple rounded-full"></div>
-                        {searchQuery ? `Search Results for "${searchQuery}"` : 'Global Trending (K-Drama, US, TR)'}
+                        {searchQuery ? `Search Results for "${searchQuery}"` : 
+                         isBrowsing ? browseTitle : 
+                         'Global Trending (K-Drama, US, TR)'}
                     </h2>
-                    {!searchQuery && (
+                    
+                    {/* If Browsing, show 'Back to Home' or similar, else show 'View All' */}
+                    {isBrowsing && (
+                         <button onClick={handleClearBrowse} className="text-purple hover:text-white text-sm font-semibold flex items-center">
+                            <X className="w-4 h-4 mr-1" /> Clear Filter
+                        </button>
+                    )}
+                    {!searchQuery && !isBrowsing && (
                         <button onClick={() => {}} className="text-purple hover:text-white text-sm font-semibold flex items-center">
                             View All <ChevronRight className="w-4 h-4" />
                         </button>
                     )}
                 </div>
                 
-                {isSearching ? (
-                   <div className="text-center py-20 text-gray-500">Searching TMDb...</div>
-                ) : searchQuery ? (
+                {isSearching || loadingSeries ? (
+                   <div className="text-center py-20 text-gray-500 flex flex-col items-center gap-4">
+                       <div className="w-8 h-8 border-2 border-purple border-t-transparent rounded-full animate-spin"></div>
+                       <span>{isSearching ? 'Searching TMDb...' : 'Loading Content...'}</span>
+                   </div>
+                ) : (
                      seriesList.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                         {seriesList.map((series) => (
@@ -423,25 +454,17 @@ function App() {
                         </div>
                     ) : (
                         <div className="text-center py-20 text-gray-500 border border-white/5 rounded-xl border-dashed">
-                            No series found matching "{searchQuery}".
+                            No series found.
                         </div>
                     )
-                ) : (
-                    // Default View: Show standard trending + New Categories
-                    <div className="space-y-12">
-                        {/* Standard Trending */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                            {seriesList.slice(0, 10).map((series) => (
-                                <DiziCard 
-                                    key={series.id} 
-                                    series={series} 
-                                    onAddToWatchlist={handleAddToWatchlist}
-                                    onClick={() => handleSeriesClick(series.id)}
-                                />
-                            ))}
-                        </div>
-
-                        {/* NEW: Horizontal Category Rows */}
+                )}
+                
+                {/* 
+                   Only show Categories Rows and Ratings if we are NOT searching and NOT browsing a specific genre.
+                   This keeps the UI clean when the user drills down.
+                */}
+                {!searchQuery && !isBrowsing && (
+                    <div className="space-y-12 mt-12">
                         <div className="pt-8">
                             {CATEGORIES.map((cat, idx) => (
                                 <CategoryRow 
@@ -458,7 +481,7 @@ function App() {
                 )}
               </section>
 
-              {!searchQuery && (
+              {!searchQuery && !isBrowsing && (
                   <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2">
                         <RatingsTable ratings={MOCK_RATINGS} series={seriesList} />
@@ -661,6 +684,7 @@ function App() {
         onLogout={handleLogout}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        onBrowse={handleBrowse}
     >
       {renderContent()}
     </Layout>

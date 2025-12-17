@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart } from 'lucide-react';
 import { ViewState, User } from '../types';
 
 interface LayoutProps {
@@ -10,6 +10,7 @@ interface LayoutProps {
   onLogout: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  onBrowse: (title: string, endpoint: string, params: string) => void;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ 
@@ -19,14 +20,70 @@ export const Layout: React.FC<LayoutProps> = ({
   user, 
   onLogout,
   searchQuery,
-  setSearchQuery
+  setSearchQuery,
+  onBrowse
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
+  const startMenuRef = useRef<HTMLDivElement>(null);
 
   const navItems: { label: string; view: ViewState }[] = [
     { label: 'Home', view: 'HOME' },
     { label: 'Ratings', view: 'RATINGS' },
     { label: 'Calendar', view: 'CALENDAR' },
+  ];
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (startMenuRef.current && !startMenuRef.current.contains(event.target as Node)) {
+        setIsStartMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleGenreClick = (genreName: string, id: number) => {
+      onBrowse(`${genreName} Series`, 'discover/tv', `with_genres=${id}&sort_by=popularity.desc`);
+      setIsStartMenuOpen(false);
+      onChangeView('HOME');
+  };
+
+  const handleCategoryClick = (title: string, endpoint: string, params: string) => {
+      onBrowse(title, endpoint, params);
+      setIsStartMenuOpen(false);
+      onChangeView('HOME');
+  };
+
+  const GENRES_LEFT = [
+      { name: 'Action & Adventure', id: 10759 },
+      { name: 'Animation', id: 16 },
+      { name: 'Comedy', id: 35 },
+      { name: 'Crime', id: 80 },
+      { name: 'Drama', id: 18 },
+      { name: 'Family', id: 10751 },
+      { name: 'History', id: 36 },
+      { name: 'Legal', id: 18 }, // TMDb doesn't have specific Legal, mapping to Drama
+      { name: 'Music', id: 10402 },
+      { name: 'Period Drama', id: 10764 }, // Mapping to Reality/Costume generic
+      { name: 'Romance', id: 10749 },
+      { name: 'Sci-Fi & Fantasy', id: 10765 },
+  ];
+
+  const GENRES_RIGHT = [
+      { name: 'Action', id: 28 }, // Movie Action (often used for TV too in mixed lists)
+      { name: 'Horror', id: 27 },
+      { name: 'Medical', id: 18 }, // Mapping to Drama
+      { name: 'Mystery', id: 9648 },
+      { name: 'Reality', id: 10764 },
+      { name: 'Romantic Comedy', id: 35 }, // Mapping to Comedy
+      { name: 'Sci-Fi', id: 10765 },
+      { name: 'Soap', id: 10766 },
+      { name: 'Teen', id: 18 },
+      { name: 'Thriller', id: 53 },
+      { name: 'War & Politics', id: 10768 },
+      { name: 'Western', id: 37 },
   ];
 
   return (
@@ -35,18 +92,133 @@ export const Layout: React.FC<LayoutProps> = ({
       <header className="sticky top-0 z-50 bg-navy-900/95 backdrop-blur-sm border-b border-white/10 shadow-lg">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           
-          {/* Logo / Homepage Button */}
-          <div 
-            className="flex items-center gap-2 cursor-pointer group" 
-            onClick={() => onChangeView('HOME')}
-            title="Go to Homepage"
-          >
-            <div className="w-8 h-8 bg-purple rounded-lg flex items-center justify-center group-hover:bg-purple-light transition-colors shadow-lg shadow-purple/20">
-              <PlayCircle className="text-white w-5 h-5" fill="currentColor" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-white group-hover:text-gray-100 transition-colors">
-              İZLE<span className="text-purple group-hover:text-purple-light">NEXT</span>
-            </span>
+          <div className="flex items-center gap-6">
+              {/* Logo / Homepage Button */}
+              <div 
+                className="flex items-center gap-2 cursor-pointer group" 
+                onClick={() => onChangeView('HOME')}
+                title="Go to Homepage"
+              >
+                <div className="w-8 h-8 bg-purple rounded-lg flex items-center justify-center group-hover:bg-purple-light transition-colors shadow-lg shadow-purple/20">
+                  <PlayCircle className="text-white w-5 h-5" fill="currentColor" />
+                </div>
+                <span className="text-xl font-bold tracking-tight text-white group-hover:text-gray-100 transition-colors hidden sm:block">
+                  İZLE<span className="text-purple group-hover:text-purple-light">NEXT</span>
+                </span>
+              </div>
+
+              {/* START HERE BUTTON */}
+              <div className="relative" ref={startMenuRef}>
+                  <button 
+                    onClick={() => setIsStartMenuOpen(!isStartMenuOpen)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all border ${isStartMenuOpen ? 'bg-white text-navy-900 border-white' : 'bg-transparent text-white border-white/30 hover:border-white'}`}
+                  >
+                      START HERE <ChevronDown className={`w-4 h-4 transition-transform ${isStartMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* MEGA MENU POPUP */}
+                  {isStartMenuOpen && (
+                      <div className="absolute top-full left-0 mt-4 w-[90vw] max-w-[1000px] bg-navy-800 border border-white/10 rounded-xl shadow-2xl p-8 grid grid-cols-1 md:grid-cols-4 gap-8 animate-in fade-in slide-in-from-top-2 z-50">
+                          
+                          {/* Column 1: TV Shows Lists */}
+                          <div className="space-y-6 border-r border-white/5 pr-6">
+                              <h3 className="text-purple font-bold border-b border-purple/30 pb-2 mb-4 inline-block">TV Shows</h3>
+                              <ul className="space-y-4">
+                                  <li onClick={() => handleCategoryClick('Trending TV Shows', 'trending/tv/day', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <Zap className="w-4 h-4 text-yellow-500" />
+                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Trending TV Shows</span>
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Most Popular', 'tv/popular', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <Rocket className="w-4 h-4 text-red-500" />
+                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Most Popular TV Shows</span>
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Newest Shows', 'tv/on_the_air', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <span className="w-4 h-4 flex items-center justify-center font-bold text-[10px] bg-blue-500 text-white rounded">NEW</span>
+                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Newest TV Shows</span>
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Upcoming Shows', 'discover/tv', 'first_air_date.gte=2024-12-01&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <Calendar className="w-4 h-4 text-green-500" />
+                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Upcoming TV Shows</span>
+                                  </li>
+                              </ul>
+
+                              <div className="h-px bg-white/5 my-4" />
+
+                              <ul className="space-y-3">
+                                  <li onClick={() => alert('News module coming soon!')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm">
+                                      <Newspaper className="w-4 h-4" /> Latest Dizi News
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Curated For You', 'tv/top_rated', '')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm">
+                                      <Heart className="w-4 h-4 text-pink-500" /> Curated For You
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Cancellation Buzz', 'discover/tv', 'vote_average.lte=6&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm">
+                                      <AlertCircle className="w-4 h-4 text-orange-500" /> Cancellation Buzz
+                                  </li>
+                                  <li onClick={() => alert('Activity feed requires login.')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm">
+                                      <Activity className="w-4 h-4" /> Activity Feed
+                                  </li>
+                              </ul>
+
+                              <button 
+                                onClick={() => handleCategoryClick('Explore All Shows', 'discover/tv', 'sort_by=popularity.desc')}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded mt-4 transition-colors text-sm"
+                              >
+                                  EXPLORE SHOWS
+                              </button>
+                          </div>
+
+                          {/* Column 2: Genres Left */}
+                          <div>
+                              <h3 className="text-purple font-bold border-b border-purple/30 pb-2 mb-4 inline-block">Top Genres</h3>
+                              <ul className="space-y-2">
+                                  {GENRES_LEFT.map(g => (
+                                      <li key={g.name} onClick={() => handleGenreClick(g.name, g.id)} className="text-gray-400 hover:text-purple cursor-pointer text-sm transition-colors">
+                                          {g.name}
+                                      </li>
+                                  ))}
+                              </ul>
+                          </div>
+
+                          {/* Column 3: Genres Right */}
+                          <div className="pt-10"> 
+                              <ul className="space-y-2">
+                                  {GENRES_RIGHT.map(g => (
+                                      <li key={g.name} onClick={() => handleGenreClick(g.name, g.id)} className="text-gray-400 hover:text-purple cursor-pointer text-sm transition-colors">
+                                          {g.name}
+                                      </li>
+                                  ))}
+                              </ul>
+                          </div>
+
+                           {/* Column 4: Quick Links */}
+                           <div className="border-l border-white/5 pl-6">
+                              <h3 className="text-purple font-bold border-b border-purple/30 pb-2 mb-4 inline-block">Quick Links</h3>
+                              <ul className="space-y-4">
+                                  {[
+                                      {label: 'Upcoming Birthdays', icon: '🎂'},
+                                      {label: 'About Dizilah', icon: '📰'},
+                                      {label: 'Request a Show', icon: '🎬'},
+                                      {label: 'Contact Us', icon: '💬'},
+                                      {label: 'Terms of Use', icon: '📋'},
+                                      {label: 'Privacy Policy', icon: '🔒'},
+                                  ].map((link) => (
+                                      <li key={link.label} onClick={() => alert(`${link.label} page is under construction.`)} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group">
+                                          <span className="grayscale group-hover:grayscale-0">{link.icon}</span>
+                                          <span>{link.label}</span>
+                                      </li>
+                                  ))}
+                              </ul>
+                              
+                              <div className="flex gap-2 mt-8">
+                                  <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-white hover:text-black cursor-pointer transition-colors text-xs font-bold">X</div>
+                                  <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-pink-600 cursor-pointer transition-colors text-xs font-bold">IG</div>
+                                  <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-blue-600 cursor-pointer transition-colors text-xs font-bold">FB</div>
+                                  <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center hover:bg-red-600 cursor-pointer transition-colors text-xs font-bold">YT</div>
+                              </div>
+                           </div>
+                      </div>
+                  )}
+              </div>
           </div>
 
           {/* Desktop Search */}
