@@ -6,7 +6,8 @@ import { SiteConfig, ApiProvider } from '../types';
 export const DEFAULT_CONFIG: SiteConfig = {
   siteName: 'İZLE',
   siteNamePart2: 'NEXT',
-  logoUrl: '', // Reset to empty to start with default icon branding
+  // Using the direct link format for Google Drive files to ensure browser compatibility
+  logoUrl: 'https://lh3.googleusercontent.com/d/17FWN_FZ_JdqGJlcXVkXPRuXJKFgjUEsL', 
   contactEmail: 'support@izlenext.com',
   contactPhone: '+90 212 000 00 00',
   address: 'Levent, Istanbul, Turkey',
