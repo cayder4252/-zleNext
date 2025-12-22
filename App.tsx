@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { DiziCard } from './components/DiziCard';
 import { RatingsTable } from './components/RatingsTable';
@@ -37,7 +37,19 @@ import {
     Calendar,
     ChevronDown,
     ExternalLink,
-    Newspaper
+    Newspaper,
+    Sparkles,
+    TrendingUp,
+    Clock,
+    Search,
+    ChevronLeft,
+    ChevronRight,
+    Flame,
+    Zap,
+    Skull,
+    Camera,
+    Trophy,
+    History
 } from 'lucide-react';
 
 const SERIES_CACHE_KEY = 'izlenext_series_cache';
@@ -87,6 +99,10 @@ function App() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
+  // Carousel State
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const slideInterval = useRef<number | null>(null);
+
   useEffect(() => {
     const unsubConfig = settingsService.subscribeToConfig((config) => {
         config.apiProviders.forEach(p => {
@@ -101,9 +117,14 @@ function App() {
   useEffect(() => {
     const fetchNews = async () => {
       setLoadingNews(true);
-      const latest = await newsService.getLatestTurkishNews();
-      setNews(latest);
-      setLoadingNews(false);
+      try {
+        const latest = await newsService.getLatestTurkishNews();
+        setNews(latest);
+      } catch (e) {
+        console.error("News fetch error in App", e);
+      } finally {
+        setLoadingNews(false);
+      }
     };
     fetchNews();
   }, []);
@@ -188,6 +209,20 @@ function App() {
     };
     fetchCalendar();
   }, [currentView, calendarLanguage, calendarType]);
+
+  // Carousel Logic
+  const trendingForSlides = seriesList.filter(s => s.is_featured || s.rating > 7).slice(0, 10);
+  
+  useEffect(() => {
+    if (currentView === 'HOME' && !searchQuery && !isBrowsing && trendingForSlides.length > 1) {
+      slideInterval.current = window.setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % trendingForSlides.length);
+      }, 5000);
+    }
+    return () => {
+      if (slideInterval.current) clearInterval(slideInterval.current);
+    };
+  }, [currentView, searchQuery, isBrowsing, trendingForSlides.length]);
 
   const handleLogin = (email: string, name: string, role: 'ADMIN' | 'USER') => {
     if (role === 'ADMIN') setCurrentView('ADMIN');
@@ -306,7 +341,6 @@ function App() {
       }
   };
 
-  const featuredShow = seriesList.find(s => s.is_featured) || seriesList[0];
   const watchlist = localWatchlist;
   const displayUser = user ? { ...user, ...userProfile } : null;
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -321,11 +355,52 @@ function App() {
   }, {} as Record<string, Series[]>);
 
   const CATEGORIES = [
-    { title: "Trending Anime", endpoint: "discover/tv", params: "with_original_language=ja&with_genres=16&sort_by=popularity.desc" },
-    { title: "Spanish Language Hits", endpoint: "discover/tv", params: "with_original_language=es&sort_by=popularity.desc" },
-    { title: "Mind-Bending Sci-Fi", endpoint: "discover/movie", params: "with_genres=878&sort_by=vote_average.desc&vote_count.gte=200" },
-    { title: "Wholesome Family Night", endpoint: "discover/movie", params: "with_genres=10751,16&sort_by=popularity.desc" },
-    { title: "IMDb Top 250", endpoint: "movie/top_rated", params: "page=1" },
+    // Turkish Specials
+    { title: "Bosphorus Romances", endpoint: "discover/tv", params: "with_original_language=tr&with_genres=10766&sort_by=popularity.desc" },
+    { title: "Midnight in Istanbul Thrillers", endpoint: "discover/tv", params: "with_original_language=tr&with_genres=80&sort_by=popularity.desc" },
+    { title: "Classic Turkish Legends", endpoint: "discover/tv", params: "with_original_language=tr&sort_by=vote_count.desc" },
+    { title: "Modern Turkish Cinema", endpoint: "discover/movie", params: "with_original_language=tr&sort_by=release_date.desc" },
+    
+    // Global Hits
+    { title: "K-Drama Wave", endpoint: "discover/tv", params: "with_original_language=ko&sort_by=popularity.desc" },
+    { title: "Trending Anime Peaks", endpoint: "discover/tv", params: "with_original_language=ja&with_genres=16&sort_by=popularity.desc" },
+    { title: "Spanish Language Sensations", endpoint: "discover/tv", params: "with_original_language=es&sort_by=popularity.desc" },
+    { title: "Bollywood Beats", endpoint: "discover/movie", params: "with_original_language=hi&sort_by=popularity.desc" },
+    
+    // Genre Focused
+    { title: "Edge-of-Your-Seat Thrillers", endpoint: "discover/movie", params: "with_genres=53&sort_by=vote_average.desc&vote_count.gte=1000" },
+    { title: "Cyberpunk Odyssey", endpoint: "discover/movie", params: "with_genres=878&sort_by=popularity.desc" },
+    { title: "Spine-Chilling Horror", endpoint: "discover/movie", params: "with_genres=27&sort_by=popularity.desc" },
+    { title: "Medieval & Epic Fantasy", endpoint: "discover/tv", params: "with_genres=10765&sort_by=popularity.desc" },
+    { title: "Laughter Therapy (Comedy)", endpoint: "discover/tv", params: "with_genres=35&sort_by=vote_average.desc&vote_count.gte=500" },
+    { title: "True Crime Investigations", endpoint: "discover/tv", params: "with_genres=80&sort_by=vote_average.desc" },
+    { title: "Historical Masterpieces", endpoint: "discover/movie", params: "with_genres=36&sort_by=vote_average.desc" },
+    
+    // Thematic Collections
+    { title: "Strong Female Leads", endpoint: "discover/tv", params: "with_genres=18&sort_by=popularity.desc" },
+    { title: "Based on True Stories", endpoint: "discover/movie", params: "with_genres=18,36&sort_by=popularity.desc" },
+    { title: "Family Night Essentials", endpoint: "discover/movie", params: "with_genres=10751,16&sort_by=popularity.desc" },
+    { title: "Mind-Bending Puzzles", endpoint: "discover/movie", params: "with_genres=9648,878&sort_by=vote_average.desc" },
+    { title: "Supernatural Encounters", endpoint: "discover/tv", params: "with_genres=10765&sort_by=vote_average.desc" },
+    
+    // Ratings & Awards
+    { title: "IMDb Top Rated 250", endpoint: "movie/top_rated", params: "page=1" },
+    { title: "Critics' Choice (TV)", endpoint: "tv/top_rated", params: "page=1" },
+    { title: "Box Office Monsters", endpoint: "movie/popular", params: "page=1" },
+    { title: "Hidden Indie Gems", endpoint: "discover/movie", params: "vote_count.lte=500&vote_average.gte=7&sort_by=popularity.desc" },
+    
+    // Time & Format
+    { title: "Nostalgic 90s Rewind", endpoint: "discover/tv", params: "first_air_date.gte=1990-01-01&first_air_date.lte=1999-12-31" },
+    { title: "The 2000s Hits", endpoint: "discover/tv", params: "first_air_date.gte=2000-01-01&first_air_date.lte=2010-12-31" },
+    { title: "Short-Form Binge (30min)", endpoint: "discover/tv", params: "with_runtime.lte=30&sort_by=popularity.desc" },
+    { title: "Epic Cinematic Runtimes", endpoint: "discover/movie", params: "with_runtime.gte=150&sort_by=popularity.desc" },
+    
+    // Niche & Buzz
+    { title: "Reality TV Obsession", endpoint: "discover/tv", params: "with_genres=10764&sort_by=popularity.desc" },
+    { title: "War & Strategy", endpoint: "discover/tv", params: "with_genres=10768&sort_by=popularity.desc" },
+    { title: "Musical Magic", endpoint: "discover/movie", params: "with_genres=10402&sort_by=popularity.desc" },
+    { title: "The Western Frontier", endpoint: "discover/movie", params: "with_genres=37&sort_by=popularity.desc" },
+    { title: "Coming-of-Age Journeys", endpoint: "discover/tv", params: "with_genres=18,10751&sort_by=vote_average.desc" },
   ];
 
   if (currentView === 'ADMIN') {
@@ -342,43 +417,76 @@ function App() {
       case 'HOME':
         return (
           <div className="animate-in fade-in duration-500">
-            {!searchQuery && !isBrowsing && featuredShow && (
-              <div className="relative h-[500px] md:h-[600px] w-full overflow-hidden">
-                <div className="absolute inset-0">
-                    <img src={featuredShow.banner_url} alt="Hero" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/60 to-transparent" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/40 to-transparent" />
-                </div>
-                <div className="container mx-auto px-4 relative h-full flex items-end pb-16 md:pb-24">
-                  <div className="max-w-2xl space-y-4">
-                    <span className="inline-block px-3 py-1 bg-purple text-white text-xs font-bold rounded uppercase tracking-wider">Trending Now</span>
-                    <h1 className="text-4xl md:text-6xl font-bold text-white leading-tight">{featuredShow.title_tr}</h1>
-                    <div className="flex items-center gap-2 text-sm text-gray-300">
-                        <span className="px-2 py-0.5 border border-gray-500 rounded text-xs">{featuredShow.network}</span>
-                        <span>{featuredShow.genres?.slice(0, 3).join(', ')}</span>
+            {!searchQuery && !isBrowsing && trendingForSlides.length > 0 && (
+              <div className="relative h-[500px] md:h-[600px] w-full overflow-hidden bg-navy-900">
+                {trendingForSlides.map((show, index) => (
+                  <div 
+                    key={show.id} 
+                    className={`absolute inset-0 transition-all duration-1000 ease-in-out transform ${
+                      index === currentSlide ? 'opacity-100 translate-x-0 scale-100 z-10' : 'opacity-0 translate-x-full scale-105 z-0'
+                    }`}
+                  >
+                    <div className="absolute inset-0">
+                        <img src={show.banner_url} alt={show.title_tr} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/60 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/40 to-transparent" />
                     </div>
-                    <p className="text-gray-300 text-lg line-clamp-2 md:line-clamp-3">{featuredShow.synopsis}</p>
-                    <div className="flex gap-4 pt-4">
-                        <button onClick={() => handleSeriesClick(featuredShow.id)} className="bg-purple hover:bg-purple-light text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 transition-all transform hover:scale-105"><Play className="w-5 h-5 fill-current" />Start Watching</button>
-                        <button onClick={() => handleAddToWatchlist(featuredShow.id)} className="bg-white/10 hover:bg-white/20 backdrop-blur text-white px-8 py-3 rounded-lg font-bold transition-all">{watchlist.includes(featuredShow.id) ? '- My List' : '+ My List'}</button>
+                    <div className="container mx-auto px-4 relative h-full flex items-end pb-16 md:pb-24">
+                      <div className={`max-w-2xl space-y-4 transition-all duration-700 delay-300 ${index === currentSlide ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+                        <span className="inline-block px-3 py-1 bg-transparent border border-white/20 backdrop-blur-md text-white text-[10px] font-black rounded uppercase tracking-widest flex items-center gap-2"><Sparkles className="w-3 h-3" /> Trending Global</span>
+                        <h1 className="text-4xl md:text-6xl font-black text-white leading-tight drop-shadow-xl">{show.title_tr}</h1>
+                        <div className="flex items-center gap-2 text-sm text-gray-300">
+                            <span className="px-2 py-0.5 border border-white/20 rounded text-[10px] font-bold uppercase">{show.network}</span>
+                            <span className="w-1 h-1 bg-white/20 rounded-full" />
+                            <span className="font-medium">{show.genres?.slice(0, 3).join(', ')}</span>
+                        </div>
+                        <p className="text-gray-300 text-base md:text-lg line-clamp-2 md:line-clamp-3 font-medium leading-relaxed max-w-xl">{show.synopsis}</p>
+                        <div className="flex gap-4 pt-4">
+                            <button onClick={() => handleSeriesClick(show.id)} className="bg-purple hover:bg-purple-light text-white px-8 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all transform hover:scale-105 shadow-2xl shadow-purple/30"><Play className="w-5 h-5 fill-current" /> Watch Now</button>
+                            <button onClick={() => handleAddToWatchlist(show.id)} className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-8 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border border-white/10">{watchlist.includes(show.id) ? '- Remove' : '+ Watchlist'}</button>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                ))}
+                
+                {/* Carousel Navigation */}
+                <div className="absolute bottom-8 right-4 md:right-12 z-20 flex items-center gap-3">
+                    {trendingForSlides.map((_, i) => (
+                        <button 
+                            key={i} 
+                            onClick={() => setCurrentSlide(i)}
+                            className={`h-1.5 transition-all duration-500 rounded-full ${i === currentSlide ? 'w-8 bg-purple' : 'w-2 bg-white/30 hover:bg-white/50'}`} 
+                        />
+                    ))}
+                </div>
+                
+                <div className="absolute top-1/2 -translate-y-1/2 left-4 md:left-8 z-20 hidden md:block">
+                    <button onClick={() => setCurrentSlide(prev => (prev - 1 + trendingForSlides.length) % trendingForSlides.length)} className="p-3 rounded-full bg-black/20 backdrop-blur-md border border-white/5 text-white hover:bg-purple transition-all">
+                        <ChevronLeft className="w-6 h-6" />
+                    </button>
+                </div>
+                <div className="absolute top-1/2 -translate-y-1/2 right-4 md:right-8 z-20 hidden md:block">
+                    <button onClick={() => setCurrentSlide(prev => (prev + 1) % trendingForSlides.length)} className="p-3 rounded-full bg-black/20 backdrop-blur-md border border-white/5 text-white hover:bg-purple transition-all">
+                        <ChevronRight className="w-6 h-6" />
+                    </button>
                 </div>
               </div>
             )}
 
-            {/* News Ticker Section */}
+            {/* Breaking News Ticker Section - STAYS AT TOP */}
             {!searchQuery && !isBrowsing && news.length > 0 && (
-              <div className="bg-navy-800 border-y border-white/5 py-3 overflow-hidden relative group">
-                <div className="container mx-auto px-4 flex items-center gap-4">
+              <div className="bg-navy-800/80 backdrop-blur border-y border-white/5 py-3 overflow-hidden relative group">
+                <div className="container mx-auto px-4 flex items-center gap-6">
                   <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-tighter whitespace-nowrap animate-pulse">
-                    <div className="w-2 h-2 bg-red-600 rounded-full" /> LIVE NEWS
+                    <div className="w-2.5 h-2.5 bg-red-600 rounded-full shadow-lg shadow-red-500/50" /> LIVE UPDATES
                   </div>
                   <div className="flex-1 overflow-hidden relative h-6">
-                    <div className="flex gap-12 animate-marquee whitespace-nowrap hover:pause-animation">
-                      {news.map((item, idx) => (
-                        <a key={idx} href={item.url} target="_blank" className="text-xs text-gray-300 hover:text-white transition-colors flex items-center gap-2">
-                           <span className="text-purple font-bold">[{item.source.name}]</span> {item.title}
+                    <div className="flex gap-16 animate-marquee whitespace-nowrap hover:pause-animation">
+                      {[...news, ...news].map((item, idx) => (
+                        <a key={idx} href={item.url} target="_blank" className="text-xs font-medium text-gray-300 hover:text-purple transition-colors flex items-center gap-2">
+                           <span className="text-purple bg-purple/10 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-widest">{item.source.name}</span> 
+                           {item.title}
                         </a>
                       ))}
                     </div>
@@ -387,26 +495,68 @@ function App() {
               </div>
             )}
 
-            <div className="container mx-auto px-4 py-12 space-y-16">
-              {/* Featured News Section */}
-              {!searchQuery && !isBrowsing && news.length > 0 && (
-                <section>
-                   <div className="flex items-center gap-2 mb-6">
-                        <div className="w-1 h-6 bg-purple rounded-full"></div>
-                        <h2 className="text-2xl font-bold text-white">Daily News Feed</h2>
+            <div className="container mx-auto px-4 py-12 space-y-24">
+              {/* Featured content grid */}
+              <section>
+                <div className="flex justify-between items-end mb-10">
+                    <div className="flex items-center gap-4">
+                        <div className="w-2 h-10 bg-purple rounded-full shadow-lg shadow-purple/50"></div>
+                        <h2 className="text-4xl font-black text-white tracking-tighter uppercase">
+                            {searchQuery ? `Results for "${searchQuery}"` : isBrowsing ? browseTitle : 'Global Charts'}
+                        </h2>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {isBrowsing && (<button onClick={handleClearBrowse} className="text-purple bg-purple/10 px-6 py-2 rounded-full hover:bg-purple/20 text-xs font-black uppercase tracking-widest flex items-center transition-all border border-purple/20"><X className="w-3 h-3 mr-2" /> Clear Filters</button>)}
+                </div>
+                {isSearching || (loadingSeries && seriesList.length === 0) ? (
+                   <div className="text-center py-24 text-gray-500 flex flex-col items-center gap-6"><div className="w-12 h-12 border-4 border-purple border-t-transparent rounded-full animate-spin shadow-lg shadow-purple/20"></div><span className="font-bold tracking-widest text-xs uppercase">{isSearching ? 'Mining Database...' : 'Loading Content...'}</span></div>
+                ) : (
+                     seriesList.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-10">
+                        {seriesList.map((series) => (<DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />))}
+                        </div>
+                    ) : ( <div className="text-center py-32 text-gray-600 border border-white/5 rounded-[2.5rem] border-dashed bg-navy-800/30 flex flex-col items-center gap-4 shadow-inner">
+                        <Search className="w-16 h-16 opacity-10" />
+                        <span className="font-black text-sm uppercase tracking-widest">No matching records found</span>
+                    </div> )
+                )}
+                {!searchQuery && !isBrowsing && (
+                    <div className="space-y-24 mt-24">
+                        {CATEGORIES.map((cat, idx) => (
+                            <CategoryRow key={idx} title={cat.title} endpoint={cat.endpoint} params={cat.params} onSeriesClick={handleSeriesClick} onAddToWatchlist={handleAddToWatchlist} onViewAll={() => handleBrowse(cat.title, cat.endpoint, cat.params)} />
+                        ))}
+                    </div>
+                )}
+              </section>
+
+              {/* Featured News Grid Section - AT BOTTOM */}
+              {!searchQuery && !isBrowsing && news.length > 0 && (
+                <section className="pt-20 animate-in slide-in-from-bottom-10 duration-1000">
+                   <div className="flex items-center justify-between mb-10 border-t border-white/5 pt-20">
+                        <div className="flex items-center gap-4">
+                            <div className="w-2 h-10 bg-purple rounded-full shadow-lg shadow-purple/50"></div>
+                            <h2 className="text-4xl font-black text-white tracking-tighter uppercase">Media & Press</h2>
+                        </div>
+                        <span className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] bg-white/5 px-5 py-2 rounded-full border border-white/5">Industry Intel</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
                       {news.slice(0, 3).map((item, i) => (
-                        <a key={i} href={item.url} target="_blank" className="group bg-navy-800 rounded-2xl overflow-hidden border border-white/5 hover:border-purple/30 transition-all flex flex-col">
-                           <div className="aspect-video relative overflow-hidden">
-                              <img src={item.urlToImage} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                              <div className="absolute top-3 left-3 bg-purple/90 backdrop-blur-md text-white text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest">{item.source.name}</div>
+                        <a key={i} href={item.url} target="_blank" className="group bg-navy-800/40 backdrop-blur-md rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-purple/40 transition-all flex flex-col hover:shadow-[0_20px_50px_rgba(123,44,191,0.15)] hover:-translate-y-2">
+                           <div className="aspect-[16/9] relative overflow-hidden">
+                              <img src={item.urlToImage} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-navy-900/90 via-transparent to-transparent" />
+                              <div className="absolute top-6 left-6 bg-purple/95 backdrop-blur-2xl text-white text-[9px] font-black px-4 py-2 rounded-2xl uppercase tracking-widest shadow-2xl border border-white/10">{item.source.name}</div>
                            </div>
-                           <div className="p-5 flex-1 flex flex-col justify-between">
-                              <h3 className="text-white font-bold leading-snug group-hover:text-purple transition-colors line-clamp-2 mb-3">{item.title}</h3>
-                              <div className="flex justify-between items-center mt-auto">
-                                <span className="text-[10px] text-gray-500 font-medium">{new Date(item.publishedAt).toLocaleDateString()}</span>
-                                <ExternalLink className="w-3 h-3 text-gray-600 group-hover:text-purple" />
+                           <div className="p-8 flex-1 flex flex-col">
+                              <h3 className="text-xl text-white font-black leading-tight group-hover:text-purple transition-colors line-clamp-2 mb-4 drop-shadow-xl">{item.title}</h3>
+                              <p className="text-gray-400 text-sm line-clamp-2 mb-8 font-medium leading-relaxed opacity-80">{item.description}</p>
+                              <div className="flex justify-between items-center mt-auto pt-6 border-t border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <Clock className="w-4 h-4 text-purple" />
+                                    <span className="text-[11px] text-gray-500 font-black uppercase tracking-widest">{new Date(item.publishedAt).toLocaleDateString()}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] font-black text-purple uppercase tracking-[0.2em] opacity-0 group-hover:opacity-100 transition-all translate-x-6 group-hover:translate-x-0">
+                                    Full Story <ExternalLink className="w-3.5 h-3.5" />
+                                </div>
                               </div>
                            </div>
                         </a>
@@ -414,34 +564,6 @@ function App() {
                     </div>
                 </section>
               )}
-
-              <section>
-                <div className="flex justify-between items-end mb-6">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <div className="w-1 h-6 bg-purple rounded-full"></div>
-                        {searchQuery ? `Search Results for "${searchQuery}"` : isBrowsing ? browseTitle : 'Global Trending'}
-                    </h2>
-                    {isBrowsing && (<button onClick={handleClearBrowse} className="text-purple hover:text-white text-sm font-semibold flex items-center"><X className="w-4 h-4 mr-1" /> Clear Filter</button>)}
-                </div>
-                {isSearching || (loadingSeries && seriesList.length === 0) ? (
-                   <div className="text-center py-20 text-gray-500 flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-purple border-t-transparent rounded-full animate-spin"></div><span>{isSearching ? 'Searching...' : 'Loading Content...'}</span></div>
-                ) : (
-                     seriesList.length > 0 ? (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                        {seriesList.map((series) => (<DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />))}
-                        </div>
-                    ) : ( <div className="text-center py-20 text-gray-500 border border-white/5 rounded-xl border-dashed">No series found.</div> )
-                )}
-                {!searchQuery && !isBrowsing && (
-                    <div className="space-y-12 mt-12">
-                        <div className="pt-8">
-                            {CATEGORIES.map((cat, idx) => (
-                                <CategoryRow key={idx} title={cat.title} endpoint={cat.endpoint} params={cat.params} onSeriesClick={handleSeriesClick} onAddToWatchlist={handleAddToWatchlist} onViewAll={() => handleBrowse(cat.title, cat.endpoint, cat.params)} />
-                            ))}
-                        </div>
-                    </div>
-                )}
-              </section>
             </div>
             <style>{`
               @keyframes marquee {
@@ -450,7 +572,7 @@ function App() {
               }
               .animate-marquee {
                 display: inline-flex;
-                animation: marquee 40s linear infinite;
+                animation: marquee 50s linear infinite;
                 width: max-content;
               }
               .pause-animation { animation-play-state: paused; }
@@ -459,96 +581,159 @@ function App() {
         );
       case 'SERIES_DETAIL':
         const displaySeries = detailData?.series || seriesList.find(s => s.id === selectedSeriesId);
-        if (!displaySeries) return <div className="p-8 text-center text-white">Series not found</div>;
+        if (!displaySeries) return <div className="p-24 text-center text-white flex flex-col items-center gap-4"><AlertCircle className="w-12 h-12 text-red-500" /> Series not found</div>;
         return <SeriesDetail series={displaySeries} cast={detailData?.cast || []} onAddToWatchlist={handleAddToWatchlist} isInWatchlist={watchlist.includes(displaySeries.id)} />;
       case 'RATINGS':
-        return (<div className="container mx-auto px-4 py-12"><h2 className="text-3xl font-bold mb-8 text-white">Detailed Ratings</h2><RatingsTable ratings={MOCK_RATINGS} series={seriesList} /></div>);
+        return (<div className="container mx-auto px-4 py-12"><h2 className="text-3xl font-black mb-10 text-white flex items-center gap-3 uppercase tracking-tighter"><TrendingUp className="text-purple w-8 h-8" /> Market Analytics</h2><RatingsTable ratings={MOCK_RATINGS} series={seriesList} /></div>);
       case 'CALENDAR':
         return (
-            <div className="container mx-auto px-4 py-12">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 bg-navy-800/50 p-6 rounded-2xl border border-white/5">
-                    <div>
-                        <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-                            <Calendar className="w-8 h-8 text-purple" />
-                            Broadcast Calendar
+            <div className="container mx-auto px-4 py-12 max-w-7xl">
+                {/* Header Section */}
+                <div className="bg-navy-800/40 backdrop-blur-xl p-8 md:p-12 rounded-[2.5rem] border border-white/5 mb-16 flex flex-col md:flex-row md:items-center justify-between gap-10 shadow-2xl shadow-black/50 overflow-hidden relative group">
+                    <div className="absolute -right-20 -top-20 w-64 h-64 bg-purple/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-purple/20 transition-colors duration-1000" />
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                            <span className="bg-purple/20 text-purple text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-[0.3em] border border-purple/30">Release Radar</span>
+                        </div>
+                        <h2 className="text-4xl md:text-6xl font-black text-white flex items-center gap-4 tracking-tighter uppercase">
+                            <Calendar className="w-12 h-12 text-purple" />
+                            Broadcast <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple to-purple-light">Pulse</span>
                         </h2>
-                        <p className="text-gray-400 text-sm mt-1">Upcoming releases and episode air dates across all languages</p>
+                        <p className="text-gray-400 text-sm md:text-lg mt-4 max-w-xl font-medium leading-relaxed">
+                            Synchronize your schedule with global premiere dates. Real-time updates from international broadcast nodes.
+                        </p>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                                <Globe className="w-3 h-3" /> Language
+                    <div className="flex flex-wrap items-center gap-8 relative z-10">
+                        <div className="flex flex-col gap-3">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1 flex items-center gap-2">
+                                <Globe className="w-3.5 h-3.5 text-purple" /> Origin
                             </label>
-                            <div className="relative min-w-[140px]">
+                            <div className="relative group/select">
                                 <select 
                                     value={calendarLanguage} 
                                     onChange={(e) => setCalendarLanguage(e.target.value)}
-                                    className="w-full bg-navy-900 border border-white/10 text-white px-4 py-2.5 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm appearance-none cursor-pointer"
+                                    className="w-full min-w-[180px] bg-navy-900/80 border border-white/10 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-purple focus:ring-4 focus:ring-purple/20 transition-all text-sm appearance-none cursor-pointer font-black uppercase tracking-widest pr-12 group-hover/select:border-white/20"
                                 >
                                     {LANGUAGES.map(lang => (
-                                        <option key={lang.code} value={lang.code}>{lang.flag} {lang.name}</option>
+                                        <option key={lang.code} value={lang.code} className="bg-navy-900">{lang.flag} {lang.name}</option>
                                     ))}
                                 </select>
-                                <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-500 pointer-events-none" />
+                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none group-hover/select:text-purple transition-colors" />
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                                <Filter className="w-3 h-3" /> Type
+                        <div className="flex flex-col gap-3">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1 flex items-center gap-2">
+                                <Filter className="w-3.5 h-3.5 text-purple" /> Format
                             </label>
-                            <div className="relative min-w-[160px]">
+                            <div className="relative group/select">
                                 <select 
                                     value={calendarType} 
                                     onChange={(e) => setCalendarType(e.target.value as any)}
-                                    className="w-full bg-navy-900 border border-white/10 text-white px-4 py-2.5 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm appearance-none cursor-pointer"
+                                    className="w-full min-w-[200px] bg-navy-900/80 border border-white/10 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-purple focus:ring-4 focus:ring-purple/20 transition-all text-sm appearance-none cursor-pointer font-black uppercase tracking-widest pr-12 group-hover/select:border-white/20"
                                 >
-                                    <option value="tv">Drama / Series</option>
-                                    <option value="movie">Movies</option>
+                                    <option value="tv" className="bg-navy-900">Broadcast Series</option>
+                                    <option value="movie" className="bg-navy-900">Cinematic Film</option>
                                 </select>
-                                <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-500 pointer-events-none" />
+                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none group-hover/select:text-purple transition-colors" />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {loadingCalendar ? (
-                    <div className="flex flex-col items-center justify-center py-32 space-y-4 animate-in fade-in duration-300">
-                        <div className="w-12 h-12 border-4 border-purple border-t-transparent rounded-full animate-spin" />
-                        <p className="text-gray-400 font-medium">Syncing Global Releases...</p>
+                    <div className="flex flex-col items-center justify-center py-48 space-y-8 animate-in fade-in duration-500">
+                        <div className="w-20 h-20 border-[6px] border-purple border-t-transparent rounded-full animate-spin shadow-[0_0_50px_rgba(123,44,191,0.4)]" />
+                        <div className="flex flex-col items-center gap-2">
+                            <p className="text-white font-black text-sm uppercase tracking-[0.5em] animate-pulse">Establishing Node Link</p>
+                            <p className="text-gray-500 text-[11px] font-black uppercase tracking-[0.2em]">Synchronizing Global Databases...</p>
+                        </div>
                     </div>
                 ) : calendarData.length === 0 ? (
-                    <div className="bg-navy-800 rounded-2xl p-20 text-center border border-white/5 border-dashed shadow-inner flex flex-col items-center gap-4 animate-in zoom-in-95 duration-300">
-                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center"><AlertCircle className="w-8 h-8 text-gray-600" /></div>
-                        <p className="text-gray-400 font-medium">No {calendarType === 'tv' ? 'broadcasts' : 'releases'} found.</p>
+                    <div className="bg-navy-800/30 rounded-[4rem] p-40 text-center border border-white/5 border-dashed shadow-2xl flex flex-col items-center gap-8 animate-in zoom-in-95 duration-500">
+                        <div className="w-28 h-28 bg-navy-800 rounded-full flex items-center justify-center shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5">
+                            <AlertCircle className="w-12 h-12 text-gray-700" />
+                        </div>
+                        <div className="space-y-3">
+                            <p className="text-white font-black text-2xl uppercase tracking-tighter">No Active Signals</p>
+                            <p className="text-gray-500 text-sm max-w-sm mx-auto font-medium leading-relaxed uppercase tracking-widest">Selected spectrum has no premieres registered for this interval.</p>
+                        </div>
+                        <button onClick={() => setCalendarLanguage('all')} className="mt-6 bg-purple text-white px-10 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.3em] hover:bg-purple-light transition-all shadow-[0_15px_30px_rgba(123,44,191,0.3)] hover:-translate-y-1">Expand Broadcast Range</button>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-7 gap-4 animate-in slide-in-from-bottom-4 duration-500">
+                    <div className="space-y-20 animate-in slide-in-from-bottom-10 duration-1000">
                         {daysOfWeek.map((day) => {
                             const showsForDay = calendarGrouped[day] || [];
+                            if (showsForDay.length === 0) return null; 
+
                             return (
-                                <div key={day} className="bg-navy-800/80 rounded-2xl p-4 min-h-[400px] border border-white/5 flex flex-col gap-4 group hover:bg-navy-800 transition-all duration-300 hover:shadow-2xl hover:shadow-purple/5">
-                                    <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                                        <span className="text-purple font-black uppercase text-[11px] tracking-widest">{day}</span>
-                                        <span className="text-[10px] text-gray-500 font-bold bg-white/5 px-2 py-0.5 rounded-full">{showsForDay.length}</span>
+                                <div key={day} className="space-y-10">
+                                    <div className="flex items-center gap-8 px-6">
+                                        <div className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
+                                            {day === new Date().toLocaleDateString('en-US', { weekday: 'short' }) ? (
+                                                <span className="bg-red-600 text-[11px] px-3 py-1 rounded-xl text-white animate-pulse border border-red-500/50 shadow-lg shadow-red-600/20">LIVE TODAY</span>
+                                            ) : null}
+                                            {day}
+                                        </div>
+                                        <div className="h-[2px] bg-gradient-to-r from-purple/40 to-transparent flex-1"></div>
+                                        <div className="text-[11px] text-gray-500 font-black uppercase tracking-[0.5em]">{showsForDay.length} RELEASES</div>
                                     </div>
-                                    <div className="space-y-3">
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-12 px-2">
                                         {showsForDay.map(show => (
-                                            <div key={show.id} onClick={() => handleSeriesClick(show.id)} className="bg-navy-900 border border-white/5 p-3 rounded-xl group/card hover:bg-purple/10 hover:border-purple/30 transition-all cursor-pointer relative overflow-hidden">
-                                                <div className="flex justify-between items-start mb-2 relative z-10">
-                                                    <div className="text-[10px] text-purple font-black bg-purple/10 px-1.5 py-0.5 rounded">{show.next_episode?.air_date.split('-').slice(1).reverse().join('/')}</div>
-                                                    <button onClick={(e) => { e.stopPropagation(); alert(`Reminder set!`); }} className="text-gray-600 hover:text-white transition-colors"><Bell className="w-3.5 h-3.5" /></button>
+                                            <div 
+                                                key={show.id} 
+                                                onClick={() => handleSeriesClick(show.id)} 
+                                                className="group relative aspect-[2/3] rounded-[2.5rem] overflow-hidden bg-navy-800 border border-white/5 cursor-pointer hover:border-purple/50 transition-all duration-700 hover:-translate-y-3 hover:shadow-[0_40px_80px_rgba(123,44,191,0.25)]"
+                                            >
+                                                <img 
+                                                    src={show.poster_url} 
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out opacity-75 group-hover:opacity-100" 
+                                                    alt={show.title_tr}
+                                                    loading="lazy"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/10 to-transparent opacity-95" />
+                                                
+                                                <div className="absolute top-6 left-6 flex flex-col gap-2 z-20">
+                                                    <div className="bg-purple/95 backdrop-blur-2xl text-white text-[9px] font-black px-4 py-2 rounded-2xl uppercase tracking-widest shadow-2xl border border-white/10 flex items-center gap-2">
+                                                        <Clock className="w-3.5 h-3.5" /> {show.next_episode?.air_date.split('-').slice(1).reverse().join('/')}
+                                                    </div>
                                                 </div>
-                                                <div className="text-xs font-bold text-white leading-tight mb-1.5 line-clamp-2 group-hover/card:text-purple transition-colors relative z-10">{show.title_tr}</div>
-                                                <div className="text-[9px] text-gray-500 font-medium truncate flex items-center gap-1.5">
-                                                    <span className="w-1 h-1 bg-gray-600 rounded-full" />
-                                                    {calendarType === 'tv' ? `S${show.next_episode?.season_number} E${show.next_episode?.episode_number} • ${show.network}` : 'Movie Premier'}
+
+                                                <div className="absolute top-6 right-6 z-20">
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); alert(`Reminder set for ${show.title_tr}!`); }} 
+                                                        className="w-12 h-12 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-purple transition-all shadow-2xl group/bell active:scale-90"
+                                                    >
+                                                        <Bell className="w-5 h-5 group-hover/bell:scale-110 transition-transform" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="absolute bottom-0 left-0 w-full p-8 z-20">
+                                                    <div className="space-y-3 transform translate-y-6 group-hover:translate-y-0 transition-transform duration-700">
+                                                        <div className="flex items-center gap-2 text-[10px] font-black text-purple uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                                                            {calendarType === 'tv' ? <TvIcon className="w-3.5 h-3.5" /> : <Clapperboard className="w-3.5 h-3.5" />}
+                                                            {calendarType === 'tv' ? 'Broadcast' : 'Film'}
+                                                        </div>
+                                                        <h3 className="text-2xl font-black text-white leading-none line-clamp-2 drop-shadow-2xl uppercase tracking-tighter">
+                                                            {show.title_tr}
+                                                        </h3>
+                                                        {calendarType === 'tv' && show.next_episode && (
+                                                            <p className="text-[11px] text-gray-400 font-black uppercase tracking-[0.2em] truncate opacity-60">
+                                                                S{show.next_episode.season_number} E{show.next_episode.episode_number} • {show.network}
+                                                            </p>
+                                                        )}
+                                                        <div className="pt-4 opacity-0 group-hover:opacity-100 transition-opacity delay-200">
+                                                            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                                                <div className="h-full bg-gradient-to-r from-purple to-purple-light w-full animate-slideRight"></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                    {showsForDay.length === 0 && <div className="flex-1 flex items-center justify-center"><div className="text-[10px] text-gray-700 text-center italic tracking-wider opacity-50">Empty Slate</div></div>}
                                 </div>
                             );
                         })}
@@ -560,64 +745,70 @@ function App() {
         if (!user) { setCurrentView('LOGIN'); return null; }
         return (
           <div className="container mx-auto px-4 py-12 relative animate-in fade-in duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div className="bg-navy-800 p-6 rounded-2xl border border-white/5 text-center h-fit shadow-xl">
-                    <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-2xl text-white overflow-hidden relative group">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+                <div className="bg-navy-800/50 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/5 text-center h-fit shadow-2xl">
+                    <div className="w-36 h-36 bg-purple rounded-full mx-auto mb-6 flex items-center justify-center text-5xl font-black border-4 border-navy-900 shadow-2xl text-white overflow-hidden relative group">
                         {displayUser?.avatar_url ? <img src={displayUser.avatar_url} alt="Profile" className="w-full h-full object-cover" /> : user.name.charAt(0).toUpperCase()}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onClick={() => setIsEditingProfile(true)}><Edit2 className="w-6 h-6 text-white" /></div>
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onClick={() => setIsEditingProfile(true)}><Edit2 className="w-8 h-8 text-white" /></div>
                     </div>
-                    <h2 className="text-xl font-bold text-white mb-1 truncate">{displayUser?.name || user.name}</h2>
-                    <p className="text-gray-500 text-sm mb-3 font-medium">{displayUser?.email}</p>
-                    <p className="text-gray-400 text-xs mb-6 px-2 italic line-clamp-3">{userProfile?.bio || 'Add a bio to your profile'}</p>
-                    {!isEditingProfile && <button onClick={() => setIsEditingProfile(true)} className="w-full bg-white/5 hover:bg-white/10 text-white py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border border-white/5"><Edit2 className="w-4 h-4" /> Edit Profile</button>}
+                    <h2 className="text-2xl font-black text-white mb-2 truncate uppercase tracking-tighter">{displayUser?.name || user.name}</h2>
+                    <p className="text-gray-500 text-xs mb-4 font-black uppercase tracking-widest">{displayUser?.email}</p>
+                    <p className="text-gray-400 text-sm mb-8 px-2 font-medium italic line-clamp-4 leading-relaxed">{userProfile?.bio || 'No status set. Update your bio to share your drama taste.'}</p>
+                    {!isEditingProfile && <button onClick={() => setIsEditingProfile(true)} className="w-full bg-white/5 hover:bg-purple text-white py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 border border-white/10"><Edit2 className="w-4 h-4" /> Edit Profile</button>}
                 </div>
-                <div className="md:col-span-3 space-y-8">
+                <div className="md:col-span-3 space-y-12">
                     {isEditingProfile ? (
-                        <div className="bg-navy-800 p-8 rounded-2xl border border-white/5 shadow-2xl animate-in slide-in-from-right-4 duration-300">
-                            <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
-                                <h3 className="text-2xl font-bold text-white flex items-center gap-2"><UserIcon className="w-6 h-6 text-purple" /> Account Settings</h3>
-                                <button onClick={() => setIsEditingProfile(false)} className="text-gray-400 hover:text-white p-2"><X className="w-5 h-5" /></button>
+                        <div className="bg-navy-800/50 backdrop-blur-xl p-10 rounded-[3rem] border border-white/5 shadow-2xl animate-in slide-in-from-right-8 duration-500">
+                            <div className="flex justify-between items-center mb-10 border-b border-white/5 pb-6">
+                                <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter"><UserIcon className="w-8 h-8 text-purple" /> Identity Settings</h3>
+                                <button onClick={() => setIsEditingProfile(false)} className="bg-white/5 text-gray-400 hover:text-white p-3 rounded-2xl transition-all"><X className="w-6 h-6" /></button>
                             </div>
-                            <form onSubmit={handleSaveProfile} className="space-y-6">
-                                {profileMessage && <div className={`p-4 rounded-xl flex items-center gap-3 text-sm animate-in zoom-in-95 ${profileMessage.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>{profileMessage.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}{profileMessage.text}</div>}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Display Name</label>
-                                        <div className="relative"><UserIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" /><input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm" /></div>
+                            <form onSubmit={handleSaveProfile} className="space-y-8">
+                                {profileMessage && <div className={`p-5 rounded-2xl flex items-center gap-4 text-sm font-bold animate-in zoom-in-95 ${profileMessage.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-red-500/10 text-red-400 border border-red-500/30'}`}>{profileMessage.type === 'success' ? <CheckCircle className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}{profileMessage.text}</div>}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1">Alias / Name</label>
+                                        <div className="relative group"><UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-purple transition-colors" /><input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-12 py-4 rounded-2xl focus:outline-none focus:border-purple focus:ring-4 focus:ring-purple/20 transition-all text-sm font-bold" /></div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Profile Picture URL</label>
-                                        <div className="relative"><LinkIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" /><input type="text" placeholder="https://example.com/photo.jpg" value={profileForm.avatar_url} onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm" /></div>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Short Bio</label>
-                                    <textarea rows={3} value={profileForm.bio} onChange={e => setProfileForm({...profileForm, bio: e.target.value})} placeholder="Tell us about your drama taste..." className="w-full bg-navy-900 border border-white/5 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm resize-none" />
-                                </div>
-                                <div className="pt-4 border-t border-white/5">
-                                    <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Lock className="w-4 h-4 text-red-500" /> Security</h4>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">New Password</label>
-                                        <div className="relative max-w-sm"><Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" /><input type="password" placeholder="••••••••" value={profileForm.newPassword} onChange={e => setProfileForm({...profileForm, newPassword: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm" /></div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1">Avatar Origin URL</label>
+                                        <div className="relative group"><LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-purple transition-colors" /><input type="text" placeholder="https://image-link.jpg" value={profileForm.avatar_url} onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-12 py-4 rounded-2xl focus:outline-none focus:border-purple focus:ring-4 focus:ring-purple/20 transition-all text-sm font-bold" /></div>
                                     </div>
                                 </div>
-                                <div className="flex gap-4 pt-4">
-                                    <button type="submit" disabled={isSavingProfile} className="flex-1 bg-purple hover:bg-purple-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50">{isSavingProfile ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save className="w-5 h-5" /> Save All Changes</>}</button>
-                                    <button type="button" onClick={() => setIsEditingProfile(false)} className="px-8 bg-white/5 hover:bg-white/10 text-white font-bold py-3.5 rounded-xl transition-all border border-white/5">Cancel</button>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1">User Status / Bio</label>
+                                    <textarea rows={4} value={profileForm.bio} onChange={e => setProfileForm({...profileForm, bio: e.target.value})} placeholder="Express your passion for storytelling..." className="w-full bg-navy-900 border border-white/5 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-purple focus:ring-4 focus:ring-purple/20 transition-all text-sm font-medium leading-relaxed resize-none" />
+                                </div>
+                                <div className="pt-6 border-t border-white/5">
+                                    <h4 className="text-xs font-black text-white mb-6 flex items-center gap-3 uppercase tracking-widest"><Lock className="w-4 h-4 text-red-600" /> Vault Security</h4>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1">Update Password</label>
+                                        <div className="relative max-w-md group"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-purple transition-colors" /><input type="password" placeholder="••••••••" value={profileForm.newPassword} onChange={e => setProfileForm({...profileForm, newPassword: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-12 py-4 rounded-2xl focus:outline-none focus:border-purple focus:ring-4 focus:ring-purple/20 transition-all text-sm font-bold" /></div>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-6 pt-6">
+                                    <button type="submit" disabled={isSavingProfile} className="flex-1 bg-purple hover:bg-purple-light text-white font-black py-5 rounded-2xl shadow-[0_15px_30px_rgba(123,44,191,0.3)] transition-all flex items-center justify-center gap-3 disabled:opacity-50 uppercase text-xs tracking-widest">{isSavingProfile ? <span className="w-5 h-5 border-[3px] border-white/30 border-t-white rounded-full animate-spin" /> : <><Save className="w-5 h-5" /> Synchronize Changes</>}</button>
+                                    <button type="button" onClick={() => setIsEditingProfile(false)} className="px-12 bg-white/5 hover:bg-white/10 text-white font-black py-5 rounded-2xl transition-all border border-white/10 uppercase text-xs tracking-widest">Abort</button>
                                 </div>
                             </form>
                         </div>
                     ) : (
-                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Heart className="w-6 h-6 text-red-500" /> My Personal Watchlist</h3>
+                        <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                            <div className="flex justify-between items-center mb-10">
+                                <h3 className="text-3xl font-black text-white flex items-center gap-4 uppercase tracking-tighter"><Heart className="w-10 h-10 text-red-600" /> Watch-Collection</h3>
+                                <span className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em] bg-white/5 px-5 py-2 rounded-full border border-white/5">{watchlist.length} ITEMS</span>
+                            </div>
                             {watchlist.length === 0 ? ( 
-                                <div className="bg-navy-800 rounded-2xl p-20 text-center border border-white/5 border-dashed shadow-inner">
-                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4"><Plus className="w-8 h-8 text-gray-600" /></div>
-                                    <p className="text-gray-400 font-medium">Your watchlist is currently empty.</p>
-                                    <button onClick={() => setCurrentView('HOME')} className="mt-6 bg-purple/10 text-purple hover:bg-purple/20 px-6 py-2 rounded-lg font-bold transition-colors">Browse Shows</button>
+                                <div className="bg-navy-800/30 rounded-[3rem] p-32 text-center border border-white/5 border-dashed shadow-inner flex flex-col items-center gap-8">
+                                    <div className="w-24 h-24 bg-navy-800 rounded-full flex items-center justify-center border border-white/5 shadow-2xl"><Plus className="w-10 h-10 text-gray-700" /></div>
+                                    <div className="space-y-2">
+                                        <p className="text-white font-black uppercase tracking-widest text-lg">Empty Collection</p>
+                                        <p className="text-gray-500 text-sm font-medium">Add shows to build your personal library.</p>
+                                    </div>
+                                    <button onClick={() => setCurrentView('HOME')} className="mt-4 bg-purple/10 text-purple hover:bg-purple/20 px-10 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all border border-purple/20">Explore Library</button>
                                 </div>
                             ) : ( 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-10">
                                     {seriesList.filter(s => watchlist.includes(s.id)).map(series => <DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />)}
                                 </div> 
                             )}
@@ -625,6 +816,15 @@ function App() {
                     )}
                 </div>
             </div>
+            <style>{`
+                @keyframes slideRight {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(0); }
+                }
+                .animate-slideRight {
+                    animation: slideRight 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                }
+            `}</style>
           </div>
         );
       default: return <div>View not found</div>;
