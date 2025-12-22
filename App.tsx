@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { DiziCard } from './components/DiziCard';
@@ -15,7 +16,6 @@ import { tmdb, tmdbInit } from './services/tmdb';
 import { omdb, omdbInit } from './services/omdb'; 
 import { watchmodeInit } from './services/watchmode';
 import { settingsService } from './services/settingsService';
-// Added Heart and Plus icons to the imports
 import { 
     Play, 
     X,
@@ -28,8 +28,26 @@ import {
     CheckCircle,
     AlertCircle,
     Heart,
-    Plus
+    Plus,
+    Globe,
+    Filter,
+    Clapperboard,
+    Tv as TvIcon,
+    // Fix: Added missing icons
+    Calendar,
+    ChevronDown
 } from 'lucide-react';
+
+const SERIES_CACHE_KEY = 'izlenext_series_cache';
+
+const LANGUAGES = [
+    { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+    { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+    { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+];
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
@@ -39,9 +57,18 @@ function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [seriesList, setSeriesList] = useState<Series[]>([]);
+  
+  const [seriesList, setSeriesList] = useState<Series[]>(() => {
+    const cached = localStorage.getItem(SERIES_CACHE_KEY);
+    return cached ? JSON.parse(cached) : MOCK_SERIES;
+  });
+
   const [calendarData, setCalendarData] = useState<Series[]>([]);
-  const [loadingSeries, setLoadingSeries] = useState(true);
+  const [calendarLanguage, setCalendarLanguage] = useState('tr');
+  const [calendarType, setCalendarType] = useState<'tv' | 'movie'>('tv');
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
+
+  const [loadingSeries, setLoadingSeries] = useState(false);
   const [browseTitle, setBrowseTitle] = useState<string | null>(null);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [detailData, setDetailData] = useState<{ series: Series, cast: Actor[] } | null>(null);
@@ -50,7 +77,6 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Profile Edit State
   const [profileForm, setProfileForm] = useState({ name: '', bio: '', avatar_url: '', newPassword: '' });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -96,12 +122,12 @@ function App() {
         if (doc.exists()) {
           const profile = doc.data() as User;
           setUserProfile(profile);
-          setProfileForm({
+          setProfileForm(prev => ({
+              ...prev,
               name: profile.name || user.name,
               bio: profile.bio || '',
               avatar_url: profile.avatar_url || '',
-              newPassword: ''
-          });
+          }));
           if (profile.watchlist) {
             setLocalWatchlist(prev => Array.from(new Set([...prev, ...profile.watchlist!])));
           }
@@ -112,7 +138,7 @@ function App() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoadingSeries(true);
+      if (seriesList.length === 0 || seriesList === MOCK_SERIES) setLoadingSeries(true);
       const firestorePromise = new Promise<Series[]>((resolve) => {
          const unsub = onSnapshot(collection(db, 'series'), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Series[];
@@ -125,14 +151,29 @@ function App() {
         let combined = [...firestoreData, ...tmdbData];
         if (combined.length === 0) combined = MOCK_SERIES;
         setSeriesList(combined);
-      } catch (e) {
-        setSeriesList(MOCK_SERIES);
-      } finally {
-        setLoadingSeries(false);
-      }
+        localStorage.setItem(SERIES_CACHE_KEY, JSON.stringify(combined));
+      } catch (e) {} finally { setLoadingSeries(false); }
     };
     fetchData();
   }, []);
+
+  // Calendar Specific Effect
+  useEffect(() => {
+    if (currentView !== 'CALENDAR') return;
+    
+    const fetchCalendar = async () => {
+        setLoadingCalendar(true);
+        try {
+            const data = await tmdb.getCalendarData(calendarType, calendarLanguage);
+            setCalendarData(data);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoadingCalendar(false);
+        }
+    };
+    fetchCalendar();
+  }, [currentView, calendarLanguage, calendarType]);
 
   const handleLogin = (email: string, name: string, role: 'ADMIN' | 'USER') => {
     if (role === 'ADMIN') setCurrentView('ADMIN');
@@ -209,39 +250,47 @@ function App() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!user) return;
+      if (!user || !auth.currentUser) return;
+
       setIsSavingProfile(true);
       setProfileMessage(null);
-      
+
+      const originalProfile = { ...userProfile };
+      setUserProfile(prev => prev ? { ...prev, name: profileForm.name, bio: profileForm.bio, avatar_url: profileForm.avatar_url } : null);
+
       try {
-          // 1. Update Firestore
+          const updatePromises: Promise<any>[] = [];
           const userRef = doc(db, 'users', user.id);
-          await updateDoc(userRef, {
+          updatePromises.push(updateDoc(userRef, {
               name: profileForm.name,
               bio: profileForm.bio,
               avatar_url: profileForm.avatar_url
-          });
+          }));
+          updatePromises.push(updateAuthProfile(auth.currentUser, {
+              displayName: profileForm.name,
+              photoURL: profileForm.avatar_url
+          }));
+          await Promise.all(updatePromises);
 
-          // 2. Update Firebase Auth Profile
-          if (auth.currentUser) {
-              await updateAuthProfile(auth.currentUser, {
-                  displayName: profileForm.name,
-                  photoURL: profileForm.avatar_url
-              });
-
-              // 3. Update Password if provided
-              if (profileForm.newPassword) {
+          if (profileForm.newPassword) {
+              try {
                   await updatePassword(auth.currentUser, profileForm.newPassword);
+              } catch (pwdErr: any) {
+                  if (pwdErr.code === 'auth/requires-recent-login') {
+                      throw new Error('For security, password changes require you to log out and log back in first.');
+                  }
+                  throw pwdErr;
               }
           }
-
-          setProfileMessage({ type: 'success', text: 'Profile updated successfully!' });
+          setProfileMessage({ type: 'success', text: 'Changes saved instantly!' });
+          setProfileForm(prev => ({ ...prev, newPassword: '' }));
           setTimeout(() => {
               setIsEditingProfile(false);
               setProfileMessage(null);
-          }, 2000);
+          }, 1500);
       } catch (err: any) {
-          setProfileMessage({ type: 'error', text: err.message || 'Failed to update profile. You may need to log in again to change your password.' });
+          setUserProfile(originalProfile);
+          setProfileMessage({ type: 'error', text: err.message || 'Update failed.' });
       } finally {
           setIsSavingProfile(false);
       }
@@ -321,7 +370,7 @@ function App() {
                     </h2>
                     {isBrowsing && (<button onClick={handleClearBrowse} className="text-purple hover:text-white text-sm font-semibold flex items-center"><X className="w-4 h-4 mr-1" /> Clear Filter</button>)}
                 </div>
-                {isSearching || loadingSeries ? (
+                {isSearching || (loadingSeries && seriesList.length === 0) ? (
                    <div className="text-center py-20 text-gray-500 flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-purple border-t-transparent rounded-full animate-spin"></div><span>{isSearching ? 'Searching...' : 'Loading Content...'}</span></div>
                 ) : (
                      seriesList.length > 0 ? (
@@ -352,21 +401,125 @@ function App() {
       case 'CALENDAR':
         return (
             <div className="container mx-auto px-4 py-12">
-                <div className="flex items-center justify-between mb-8"><div><h2 className="text-3xl font-bold text-white">Broadcast Calendar</h2><p className="text-gray-400 text-sm mt-1">Ongoing dramas airing this week</p></div><span className="text-purple font-mono bg-purple/10 px-3 py-1 rounded">Next 7 Days</span></div>
-                {calendarData.length === 0 ? (<div className="text-center py-20"><div className="w-10 h-10 border-4 border-purple border-t-transparent rounded-full animate-spin mx-auto mb-4" /><p className="text-gray-400">Loading schedule...</p></div>) : (
-                    <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 bg-navy-800/50 p-6 rounded-2xl border border-white/5">
+                    <div>
+                        <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+                            <Calendar className="w-8 h-8 text-purple" />
+                            Broadcast Calendar
+                        </h2>
+                        <p className="text-gray-400 text-sm mt-1">Upcoming releases and episode air dates</p>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-4">
+                        {/* Language Selector */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                                <Globe className="w-3 h-3" /> Language
+                            </label>
+                            <div className="relative min-w-[140px]">
+                                <select 
+                                    value={calendarLanguage} 
+                                    onChange={(e) => setCalendarLanguage(e.target.value)}
+                                    className="w-full bg-navy-900 border border-white/10 text-white px-4 py-2.5 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm appearance-none cursor-pointer"
+                                >
+                                    {LANGUAGES.map(lang => (
+                                        <option key={lang.code} value={lang.code}>{lang.flag} {lang.name}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-500 pointer-events-none" />
+                            </div>
+                        </div>
+
+                        {/* Type Selector */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                                <Filter className="w-3 h-3" /> Type
+                            </label>
+                            <div className="relative min-w-[160px]">
+                                <select 
+                                    value={calendarType} 
+                                    onChange={(e) => setCalendarType(e.target.value as any)}
+                                    className="w-full bg-navy-900 border border-white/10 text-white px-4 py-2.5 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm appearance-none cursor-pointer"
+                                >
+                                    <option value="tv">Drama / Series</option>
+                                    <option value="movie">Movies</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-500 pointer-events-none" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {loadingCalendar ? (
+                    <div className="flex flex-col items-center justify-center py-32 space-y-4 animate-in fade-in duration-300">
+                        <div className="w-12 h-12 border-4 border-purple border-t-transparent rounded-full animate-spin" />
+                        <p className="text-gray-400 font-medium">Syncing {calendarType === 'tv' ? 'Episode' : 'Movie'} Releases...</p>
+                    </div>
+                ) : calendarData.length === 0 ? (
+                    <div className="bg-navy-800 rounded-2xl p-20 text-center border border-white/5 border-dashed shadow-inner flex flex-col items-center gap-4 animate-in zoom-in-95 duration-300">
+                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center">
+                            <AlertCircle className="w-8 h-8 text-gray-600" />
+                        </div>
+                        <p className="text-gray-400 font-medium">No {calendarType === 'tv' ? 'broadcasts' : 'releases'} found for this week.</p>
+                        <p className="text-gray-600 text-sm">Try selecting a different language or content type above.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-7 gap-4 animate-in slide-in-from-bottom-4 duration-500">
                         {daysOfWeek.map((day) => {
                             const showsForDay = calendarGrouped[day] || [];
                             return (
-                                <div key={day} className="bg-navy-800 rounded-lg p-4 min-h-[300px] border border-white/5 flex flex-col gap-3">
-                                    <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2"><span className="text-gray-500 font-bold uppercase text-xs">{day}</span><span className="text-xs text-gray-600">{showsForDay.length} Shows</span></div>
-                                    {showsForDay.map(show => (
-                                        <div key={show.id} onClick={() => handleSeriesClick(show.id)} className="bg-navy-700 p-3 rounded group hover:bg-navy-600 transition-colors cursor-pointer relative">
-                                            <div className="flex justify-between items-start mb-1"><div className="text-xs text-purple font-bold">{show.next_episode?.air_date.split('-')[1]}/{show.next_episode?.air_date.split('-')[2]}</div><button onClick={(e) => { e.stopPropagation(); alert(`Reminder set!`); }} className="text-gray-500 hover:text-white"><Bell className="w-3 h-3" /></button></div>
-                                            <div className="text-sm font-bold text-white leading-tight mb-1 line-clamp-2 group-hover:text-purple">{show.title_tr}</div>
+                                <div key={day} className="bg-navy-800/80 rounded-2xl p-4 min-h-[400px] border border-white/5 flex flex-col gap-4 group hover:bg-navy-800 transition-all duration-300 hover:shadow-2xl hover:shadow-purple/5">
+                                    <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                                        <span className="text-purple font-black uppercase text-[11px] tracking-widest">{day}</span>
+                                        <span className="text-[10px] text-gray-500 font-bold bg-white/5 px-2 py-0.5 rounded-full">{showsForDay.length}</span>
+                                    </div>
+                                    
+                                    <div className="space-y-3">
+                                        {showsForDay.map(show => (
+                                            <div 
+                                                key={show.id} 
+                                                onClick={() => handleSeriesClick(show.id)} 
+                                                className="bg-navy-900 border border-white/5 p-3 rounded-xl group/card hover:bg-purple/10 hover:border-purple/30 transition-all cursor-pointer relative overflow-hidden"
+                                            >
+                                                {/* Mini Type Indicator */}
+                                                <div className="absolute -right-1 -top-1 opacity-10 group-hover/card:opacity-30 transition-opacity">
+                                                    {calendarType === 'tv' ? <TvIcon className="w-10 h-10" /> : <Clapperboard className="w-10 h-10" />}
+                                                </div>
+
+                                                <div className="flex justify-between items-start mb-2 relative z-10">
+                                                    <div className="text-[10px] text-purple font-black bg-purple/10 px-1.5 py-0.5 rounded">
+                                                        {show.next_episode?.air_date.split('-').slice(1).reverse().join('/')}
+                                                    </div>
+                                                    <button onClick={(e) => { e.stopPropagation(); alert(`Reminder set!`); }} className="text-gray-600 hover:text-white transition-colors">
+                                                        <Bell className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                                
+                                                <div className="text-xs font-bold text-white leading-tight mb-1.5 line-clamp-2 group-hover/card:text-purple transition-colors relative z-10">
+                                                    {show.title_tr}
+                                                </div>
+                                                
+                                                {calendarType === 'tv' && show.next_episode && (
+                                                    <div className="text-[9px] text-gray-500 font-medium truncate flex items-center gap-1.5">
+                                                        <span className="w-1 h-1 bg-gray-600 rounded-full" />
+                                                        S{show.next_episode.season_number} E{show.next_episode.episode_number} • {show.network}
+                                                    </div>
+                                                )}
+                                                {calendarType === 'movie' && (
+                                                    <div className="text-[9px] text-gray-500 font-medium truncate flex items-center gap-1.5">
+                                                        <span className="w-1 h-1 bg-gray-600 rounded-full" />
+                                                        Movie Premier
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {showsForDay.length === 0 && (
+                                        <div className="flex-1 flex items-center justify-center">
+                                            <div className="text-[10px] text-gray-700 text-center italic tracking-wider opacity-50">Empty Slate</div>
                                         </div>
-                                    ))}
-                                    {showsForDay.length === 0 && (<div className="text-[10px] text-gray-600 text-center py-4 italic">No shows airing</div>)}
+                                    )}
                                 </div>
                             );
                         })}

@@ -24,7 +24,8 @@ import {
   MessageSquare,
   Trophy,
   Film,
-  PenTool
+  PenTool,
+  X
 } from 'lucide-react';
 
 interface SeriesDetailProps {
@@ -267,7 +268,7 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                                     <div className="w-1 h-6 bg-red-600 rounded-full" />
                                     <h3 className="text-white font-bold text-lg">Trailers & Videos</h3>
                                 </div>
-                                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-lg relative group">
+                                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-2xl relative group ring-1 ring-white/10">
                                     {!isPlayingTrailer ? (
                                         <div 
                                             className="w-full h-full cursor-pointer relative"
@@ -279,21 +280,30 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                                                 className="w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity duration-300"
                                             />
                                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                                <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform duration-300">
-                                                    <Play className="w-8 h-8 text-white fill-current ml-1" />
+                                                <div className="w-16 h-16 md:w-20 md:h-20 bg-red-600 rounded-full flex items-center justify-center shadow-2xl transform group-hover:scale-110 transition-transform duration-300">
+                                                    <Play className="w-6 h-6 md:w-8 md:h-8 text-white fill-current ml-1" />
                                                 </div>
-                                                <span className="mt-4 text-white font-bold text-lg tracking-wide uppercase drop-shadow-md">Watch Trailer</span>
+                                                <span className="mt-4 text-white font-bold text-sm md:text-lg tracking-wide uppercase drop-shadow-md">Watch Trailer</span>
                                             </div>
                                         </div>
                                     ) : (
-                                        <iframe 
-                                            src={`${series.trailer_url.replace('watch?v=', 'embed/')}?autoplay=1`} 
-                                            title="Trailer" 
-                                            className="w-full h-full" 
-                                            frameBorder="0" 
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                            allowFullScreen 
-                                        />
+                                        <div className="w-full h-full animate-in fade-in zoom-in-95 duration-500 relative">
+                                            <button 
+                                                onClick={() => setIsPlayingTrailer(false)}
+                                                className="absolute top-4 right-4 z-20 bg-black/60 hover:bg-red-600 text-white p-2 rounded-full backdrop-blur-md transition-colors shadow-lg"
+                                                title="Close Trailer"
+                                            >
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                            <iframe 
+                                                src={`${series.trailer_url.replace('watch?v=', 'embed/')}?autoplay=1`} 
+                                                title="Trailer" 
+                                                className="w-full h-full" 
+                                                frameBorder="0" 
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                                allowFullScreen 
+                                            />
+                                        </div>
                                     )}
                                 </div>
                             </section>

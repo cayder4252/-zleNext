@@ -1,9 +1,8 @@
-
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { SiteConfig, ApiProvider } from '../types';
 
-const DEFAULT_CONFIG: SiteConfig = {
+export const DEFAULT_CONFIG: SiteConfig = {
   siteName: 'İZLE',
   siteNamePart2: 'NEXT',
   contactEmail: 'support@izlenext.com',
@@ -17,27 +16,47 @@ const DEFAULT_CONFIG: SiteConfig = {
   ]
 };
 
+const CACHE_KEY = 'izlenext_site_config';
+
 export const settingsService = {
+  // Synchronous method to get last known config
+  getCachedConfig(): SiteConfig {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        return DEFAULT_CONFIG;
+      }
+    }
+    return DEFAULT_CONFIG;
+  },
+
   async getConfig(): Promise<SiteConfig> {
     const docRef = doc(db, 'settings', 'global');
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return docSnap.data() as SiteConfig;
+      const data = docSnap.data() as SiteConfig;
+      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      return data;
     }
-    // Initialize with defaults if empty
     await setDoc(docRef, DEFAULT_CONFIG);
+    localStorage.setItem(CACHE_KEY, JSON.stringify(DEFAULT_CONFIG));
     return DEFAULT_CONFIG;
   },
 
   async updateConfig(config: SiteConfig): Promise<void> {
     const docRef = doc(db, 'settings', 'global');
+    localStorage.setItem(CACHE_KEY, JSON.stringify(config));
     await setDoc(docRef, config, { merge: true });
   },
 
   subscribeToConfig(callback: (config: SiteConfig) => void) {
     return onSnapshot(doc(db, 'settings', 'global'), (doc) => {
       if (doc.exists()) {
-        callback(doc.data() as SiteConfig);
+        const data = doc.data() as SiteConfig;
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        callback(data);
       } else {
         callback(DEFAULT_CONFIG);
       }

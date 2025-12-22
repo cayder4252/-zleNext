@@ -1,8 +1,7 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart, Clock, Trash2, History, Mail, Phone, MapPin } from 'lucide-react';
 import { ViewState, User, SiteConfig } from '../types';
-import { settingsService } from '../services/settingsService';
+import { settingsService, DEFAULT_CONFIG } from '../services/settingsService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -27,7 +26,8 @@ export const Layout: React.FC<LayoutProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
-  const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
+  // Initialize from cache immediately to prevent blank screen
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => settingsService.getCachedConfig());
   
   const startMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -42,10 +42,8 @@ export const Layout: React.FC<LayoutProps> = ({
   ];
 
   useEffect(() => {
-    // Subscribe to live settings
     const unsub = settingsService.subscribeToConfig((config) => {
       setSiteConfig(config);
-      // Update document title dynamically
       document.title = `${config.siteName}${config.siteNamePart2} - Track Turkish Dramas`;
     });
 
@@ -145,7 +143,7 @@ export const Layout: React.FC<LayoutProps> = ({
       { name: 'Western', id: 37 },
   ];
 
-  if (!siteConfig) return null;
+  // We no longer return null here. siteConfig is guaranteed to have a value from DEFAULT_CONFIG or cache.
 
   return (
     <div className="min-h-screen bg-navy-900 flex flex-col font-sans">

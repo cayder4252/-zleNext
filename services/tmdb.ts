@@ -244,20 +244,46 @@ export const tmdb = {
       }
   },
 
-  getCalendarShows: async (): Promise<Series[]> => {
+  getCalendarData: async (type: 'tv' | 'movie', language: string): Promise<Series[]> => {
     if (!IS_ENABLED) return [];
     try {
-        const response = await fetch(`${BASE_URL}/tv/on_the_air?api_key=${API_KEY}`);
-        const data = await response.json();
-        const initialList = data.results.slice(0, 14); 
+        const today = new Date().toISOString().split('T')[0];
+        const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}&with_original_language=${language}&sort_by=popularity.desc`;
+        
+        if (type === 'tv') {
+            url += `&air_date.gte=${today}&air_date.lte=${nextWeek}`;
+        } else {
+            url += `&primary_release_date.gte=${today}&primary_release_date.lte=${nextWeek}`;
+        }
 
-        const detailPromises = initialList.map((item: any) => 
-            fetch(`${BASE_URL}/tv/${item.id}?api_key=${API_KEY}`).then(res => res.json())
+        const response = await fetch(url);
+        const data = await response.json();
+        const results = data.results?.slice(0, 15) || [];
+
+        // Fetch details to get air dates for calendar grouping
+        const detailPromises = results.map((item: any) => 
+            fetch(`${BASE_URL}/${type}/${item.id}?api_key=${API_KEY}`).then(res => res.json())
         );
 
         const detailsData = await Promise.all(detailPromises);
-        
-        return detailsData.map(mapTmdbToSeries);
+        return detailsData.map((d: any) => {
+            const series = mapTmdbToSeries(d);
+            // If movie, map release date to next_episode air_date for calendar grouping consistency
+            if (type === 'movie' && !series.next_episode && d.release_date) {
+                series.next_episode = {
+                    air_date: d.release_date,
+                    id: 0,
+                    name: 'Release Day',
+                    episode_number: 1,
+                    season_number: 1,
+                    overview: d.overview,
+                    still_path: null
+                };
+            }
+            return series;
+        });
     } catch (error) {
         console.error("Error fetching calendar data:", error);
         return [];
