@@ -1,10 +1,18 @@
+
 import { Series, Actor, Episode, Season, Review } from '../types';
 import { omdb } from './omdb';
 
-const API_KEY = '85251d97249cfcc215d008c0a93cd2ac';
+let API_KEY = '85251d97249cfcc215d008c0a93cd2ac';
+let IS_ENABLED = true;
+
 const BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w780';
 const IMAGE_ORIGINAL_URL = 'https://image.tmdb.org/t/p/original';
+
+export const tmdbInit = (key: string, enabled: boolean) => {
+  API_KEY = key;
+  IS_ENABLED = enabled;
+};
 
 // Types for TMDb responses
 interface TmdbItem {
@@ -117,7 +125,6 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
       nextEpisode = mapTmdbEpisode(detailedItem.next_episode_to_air);
   }
 
-  // Map Seasons
   const seasons: Season[] = detailedItem.seasons ? detailedItem.seasons.map(s => ({
       id: s.id,
       name: s.name,
@@ -128,7 +135,6 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
       overview: s.overview
   })).filter(s => s.season_number > 0) : []; 
 
-  // Map Reviews
   const reviews: Review[] = detailedItem.reviews ? detailedItem.reviews.results.map(r => ({
       id: r.id,
       author: r.author,
@@ -159,13 +165,14 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
     next_episode: nextEpisode,
     seasons: seasons,
     reviews: reviews,
-    imdb_id: detailedItem.external_ids?.imdb_id || undefined, // Map IMDb ID
+    imdb_id: detailedItem.external_ids?.imdb_id || undefined,
     social_links: {} 
   };
 };
 
 export const tmdb = {
   getTrendingSeries: async (timeWindow: 'day' | 'week' = 'day'): Promise<Series[]> => {
+    if (!IS_ENABLED) return [];
     try {
       const response = await fetch(`${BASE_URL}/trending/tv/${timeWindow}?api_key=${API_KEY}`);
       const data = await response.json();
@@ -177,6 +184,7 @@ export const tmdb = {
   },
 
   getTrendingMovies: async (timeWindow: 'day' | 'week' = 'day'): Promise<Series[]> => {
+    if (!IS_ENABLED) return [];
     try {
       const response = await fetch(`${BASE_URL}/trending/movie/${timeWindow}?api_key=${API_KEY}`);
       const data = await response.json();
@@ -188,6 +196,7 @@ export const tmdb = {
   },
 
   search: async (query: string): Promise<Series[]> => {
+    if (!IS_ENABLED) return [];
     try {
       const response = await fetch(`${BASE_URL}/search/multi?api_key=${API_KEY}&query=${encodeURIComponent(query)}`);
       const data = await response.json();
@@ -200,6 +209,7 @@ export const tmdb = {
   },
 
   getDetails: async (id: string, type: 'movie' | 'tv' = 'tv'): Promise<{ series: Series, cast: Actor[] }> => {
+    if (!IS_ENABLED) throw new Error("TMDb is disabled");
     try {
       const response = await fetch(`${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons,external_ids`);
       const data = await response.json();
@@ -222,6 +232,7 @@ export const tmdb = {
   },
   
   getSeasonDetails: async (seriesId: string, seasonNumber: number): Promise<Episode[]> => {
+      if (!IS_ENABLED) return [];
       try {
           const response = await fetch(`${BASE_URL}/tv/${seriesId}/season/${seasonNumber}?api_key=${API_KEY}`);
           const data = await response.json();
@@ -234,6 +245,7 @@ export const tmdb = {
   },
 
   getCalendarShows: async (): Promise<Series[]> => {
+    if (!IS_ENABLED) return [];
     try {
         const response = await fetch(`${BASE_URL}/tv/on_the_air?api_key=${API_KEY}`);
         const data = await response.json();
@@ -252,8 +264,8 @@ export const tmdb = {
     }
   },
 
-  // NEW: Helper for Categories
   getDiscoveryContent: async (endpoint: string, params: string): Promise<Series[]> => {
+    if (!IS_ENABLED) return [];
     try {
         const response = await fetch(`${BASE_URL}/${endpoint}?api_key=${API_KEY}&${params}`);
         const data = await response.json();
@@ -265,26 +277,14 @@ export const tmdb = {
     }
   },
 
-  // NEW: Logic to enrich series list with OMDb data
   enrichSeries: async (seriesList: Series[]): Promise<Series[]> => {
-      // Limit to first 6 items to avoid rate limiting/performance hit on listing pages
+      if (!IS_ENABLED) return seriesList;
       const itemsToEnrich = seriesList.slice(0, 6);
       const remainingItems = seriesList.slice(6);
 
       const enrichedItems = await Promise.all(itemsToEnrich.map(async (item) => {
           try {
-              // 1. Get External IDs (if not already fetched)
-              // Note: discovery results usually don't include external_ids, so we must fetch them.
-              // We infer media type based on original_title vs original_name presence in mapTmdbToSeries or checking internal props
-              // But Series interface abstracts this. We'll try 'tv' if title_tr exists, or 'movie'.
-              // A safer way is checking known props or guessing.
-              // For robustness, we'll try to determine type or assume from the discovery context passed in? 
-              // Since we don't have context here, we do a best guess or fetch both if needed.
-              // Optimization: We will skip strict ID fetching for list views to save quota unless critical.
-              // The user prompt *demands* the enrichment. We will do it properly.
-              
               const mediaType = item.episodes_total > 0 || item.seasons ? 'tv' : 'movie'; 
-              
               const idRes = await fetch(`${BASE_URL}/${mediaType}/${item.id}/external_ids?api_key=${API_KEY}`);
               const ids = await idRes.json();
               

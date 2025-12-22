@@ -1,5 +1,7 @@
 
-const API_KEY = 'ldDCNifAdxxUu7UMXMXhWo1AUNHsP0QLnxrUnmzI';
+let API_KEY = 'ldDCNifAdxxUu7UMXMXhWo1AUNHsP0QLnxrUnmzI';
+let IS_ENABLED = true;
+
 const BASE_URL = 'https://api.watchmode.com/v1';
 
 export interface StreamingSource {
@@ -16,10 +18,15 @@ export interface StreamingSource {
     episodes?: number;
 }
 
+export const watchmodeInit = (key: string, enabled: boolean) => {
+  API_KEY = key;
+  IS_ENABLED = enabled;
+};
+
 export const watchmode = {
     getStreamingSources: async (imdbId: string): Promise<StreamingSource[]> => {
+        if (!IS_ENABLED) return [];
         try {
-            // 1. Get Watchmode ID from IMDb ID
             const searchRes = await fetch(`${BASE_URL}/search/?apiKey=${API_KEY}&search_field=imdb_id&search_value=${imdbId}`);
             const searchData = await searchRes.json();
 
@@ -29,13 +36,11 @@ export const watchmode = {
 
             const titleId = searchData.title_results[0].id;
 
-            // 2. Get Sources for the title
             const sourcesRes = await fetch(`${BASE_URL}/title/${titleId}/sources/?apiKey=${API_KEY}&regions=US`);
             const sourcesData = await sourcesRes.json();
 
             if (!Array.isArray(sourcesData)) return [];
 
-            // Filter duplicates and 'sub' (subscription) type
             const uniqueSources = new Map();
             sourcesData.forEach((source: any) => {
                 if (source.type === 'sub') {

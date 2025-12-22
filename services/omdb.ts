@@ -1,13 +1,21 @@
+
 import { Series } from '../types';
 
-const API_KEY = 'trilogy'; // Common free API key for educational use
+let API_KEY = 'trilogy';
+let IS_ENABLED = true;
+
 const BASE_URL = 'https://www.omdbapi.com';
+
+export const omdbInit = (key: string, enabled: boolean) => {
+  API_KEY = key;
+  IS_ENABLED = enabled;
+};
 
 export const omdb = {
   getDetails: async (imdbId: string): Promise<Partial<Series> | null> => {
+    if (!IS_ENABLED) return null;
     try {
       const controller = new AbortController();
-      // 2s timeout to prevent UI blocking on slow/failed OMDb requests
       const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       const response = await fetch(`${BASE_URL}/?apikey=${API_KEY}&i=${imdbId}`, {
@@ -35,7 +43,6 @@ export const omdb = {
         imdb_votes: data.imdbVotes !== 'N/A' ? data.imdbVotes : undefined,
       };
     } catch (error: any) {
-      // Gracefully handle network errors or blocking without spamming console errors
       if (error.name !== 'AbortError') {
           console.warn(`OMDb enrichment skipped for ${imdbId}: ${error.message}`);
       }

@@ -111,4 +111,28 @@ export interface User {
   watchlist?: string[];
 }
 
+export interface ApiProvider {
+  id: string;
+  name: string;
+  apiKey: string;
+  isEnabled: boolean;
+  description: string;
+}
+
+export interface SiteConfig {
+  siteName: string;
+  siteNamePart2: string; // The "NEXT" part
+  logoUrl?: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  socialLinks: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    youtube?: string;
+  };
+  apiProviders: ApiProvider[];
+}
+
 export type ViewState = 'HOME' | 'RATINGS' | 'CALENDAR' | 'PROFILE' | 'ADMIN' | 'LOGIN' | 'REGISTER' | 'SERIES_DETAIL';
