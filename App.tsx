@@ -90,6 +90,7 @@ function App() {
 
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [loadingNews, setLoadingNews] = useState(false);
+  const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
 
   const [loadingSeries, setLoadingSeries] = useState(false);
   const [browseTitle, setBrowseTitle] = useState<string | null>(null);
@@ -129,6 +130,15 @@ function App() {
     };
     fetchNews();
   }, []);
+
+  // News Ticker Logic: Update every 3 seconds
+  useEffect(() => {
+    if (news.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentNewsIndex(prev => (prev + 1) % news.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [news.length]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -454,14 +464,24 @@ function App() {
             )}
 
             {!searchQuery && !isBrowsing && news.length > 0 && (
-              <div className="bg-navy-800/80 backdrop-blur border-y border-white/5 py-3 overflow-hidden relative group">
+              <div className="bg-navy-800/80 backdrop-blur border-y border-white/5 py-3 overflow-hidden relative group h-[48px] flex items-center">
                 <div className="container mx-auto px-4 flex items-center gap-6">
-                  <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-tighter animate-pulse">
-                    <div className="w-2.5 h-2.5 bg-red-600 rounded-full shadow-lg" /> LIVE UPDATES
+                  <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-tighter shrink-0">
+                    <div className="w-2.5 h-2.5 bg-red-600 rounded-full shadow-lg animate-pulse" /> LIVE UPDATES
                   </div>
                   <div className="flex-1 overflow-hidden relative h-6">
-                    <div className="flex gap-16 animate-marquee whitespace-nowrap">
-                      {[...news, ...news].map((item, idx) => (<a key={idx} href={item.url} target="_blank" className="text-xs font-medium text-gray-300 hover:text-purple flex items-center gap-2"><span className="text-purple bg-purple/10 px-1.5 py-0.5 rounded text-[10px] font-black">{item.source.name}</span> {item.title}</a>))}
+                    <div className="relative h-full w-full">
+                      {news.map((item, idx) => (
+                        <a 
+                          key={idx} 
+                          href={item.url} 
+                          target="_blank" 
+                          className={`absolute inset-0 text-xs font-medium text-gray-300 hover:text-purple flex items-center gap-2 transition-all duration-700 ease-in-out transform ${idx === currentNewsIndex ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}
+                        >
+                          <span className="text-purple bg-purple/10 px-1.5 py-0.5 rounded text-[10px] font-black shrink-0">{item.source.name}</span> 
+                          <span className="truncate">{item.title}</span>
+                        </a>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -597,7 +617,6 @@ function App() {
                     )}
                 </div>
             </div>
-            <style>{`@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } } .animate-marquee { display: inline-flex; animation: marquee 50s linear infinite; width: max-content; }`}</style>
           </div>
         );
       default: return <div>View not found</div>;
