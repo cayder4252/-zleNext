@@ -1,3 +1,4 @@
+
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { SiteConfig, ApiProvider } from '../types';
@@ -12,14 +13,14 @@ export const DEFAULT_CONFIG: SiteConfig = {
   apiProviders: [
     { id: 'tmdb', name: 'TMDb', apiKey: '85251d97249cfcc215d008c0a93cd2ac', isEnabled: true, description: 'Main database for series and movies.' },
     { id: 'omdb', name: 'OMDb', apiKey: 'trilogy', isEnabled: true, description: 'Enriches data with IMDb ratings and awards.' },
-    { id: 'watchmode', name: 'Watchmode', apiKey: 'ldDCNifAdxxUu7UMXMXhWo1AUNHsP0QLnxrUnmzI', isEnabled: true, description: 'Provides streaming availability info.' }
+    { id: 'watchmode', name: 'Watchmode', apiKey: 'ldDCNifAdxxUu7UMXMXhWo1AUNHsP0QLnxrUnmzI', isEnabled: true, description: 'Provides streaming availability info.' },
+    { id: 'moviesdatabase', name: 'MoviesDatabase (RapidAPI)', apiKey: '21053517d9msh7be6afdfd60a909p1f8df1jsn98c1905098be', isEnabled: true, description: 'Extends title metadata and actor database.' }
   ]
 };
 
 const CACHE_KEY = 'izlenext_site_config';
 
 export const settingsService = {
-  // Synchronous method to get last known config
   getCachedConfig(): SiteConfig {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {

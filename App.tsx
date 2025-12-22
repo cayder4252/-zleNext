@@ -15,6 +15,7 @@ import { collection, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove } from 
 import { tmdb, tmdbInit } from './services/tmdb';
 import { omdb, omdbInit } from './services/omdb'; 
 import { watchmodeInit } from './services/watchmode';
+import { moviesDatabaseInit } from './services/moviesDatabase';
 import { settingsService } from './services/settingsService';
 import { newsService } from './services/newsService';
 import { 
@@ -70,7 +71,6 @@ function App() {
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null); 
   const [user, setUser] = useState<User | null>(null);
   
-  // High-performance reactive state for user details
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [localWatchlist, setLocalWatchlist] = useState<string[]>([]);
   
@@ -103,19 +103,18 @@ function App() {
   const slideInterval = useRef<number | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Initialize Global API Settings
   useEffect(() => {
     const unsubConfig = settingsService.subscribeToConfig((config) => {
         config.apiProviders.forEach(p => {
           if (p.id === 'tmdb') tmdbInit(p.apiKey, p.isEnabled);
           if (p.id === 'omdb') omdbInit(p.apiKey, p.isEnabled);
           if (p.id === 'watchmode') watchmodeInit(p.apiKey, p.isEnabled);
+          if (p.id === 'moviesdatabase') moviesDatabaseInit(p.apiKey, p.isEnabled);
         });
     });
     return () => unsubConfig();
   }, []);
 
-  // Fetch News Ticker
   useEffect(() => {
     const fetchNews = async () => {
       setLoadingNews(true);
@@ -131,7 +130,6 @@ function App() {
     fetchNews();
   }, []);
 
-  // AUTH SESSION & PERSISTENCE SYNC
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -145,7 +143,6 @@ function App() {
         };
         setUser(userData);
 
-        // HYDRATION: Load from LocalStorage for instant UI feedback
         const cachedProfile = localStorage.getItem(`izlenext_profile_${firebaseUser.uid}`);
         if (cachedProfile) {
             const parsed = JSON.parse(cachedProfile);
@@ -165,14 +162,12 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // FIRESTORE PROFILE REAL-TIME LISTENER
   useEffect(() => {
     if (!user?.id) return;
     const unsub = onSnapshot(doc(db, 'users', user.id), (docSnapshot) => {
         if (docSnapshot.exists()) {
           const profile = docSnapshot.data() as User;
           setUserProfile(profile);
-          // Persist to local for fast hydration next load
           localStorage.setItem(`izlenext_profile_${user.id}`, JSON.stringify(profile));
           
           setProfileForm(prev => ({
@@ -191,7 +186,6 @@ function App() {
     return () => unsub();
   }, [user?.id]);
 
-  // Initial Data Load
   useEffect(() => {
     const fetchData = async () => {
       if (seriesList.length === 0 || seriesList === MOCK_SERIES) setLoadingSeries(true);
@@ -213,7 +207,6 @@ function App() {
     fetchData();
   }, []);
 
-  // Search Logic (Global Database)
   useEffect(() => {
     const performSearch = async () => {
       const trimmedQuery = searchQuery.trim();
@@ -360,7 +353,6 @@ function App() {
         avatar_url: profileForm.avatar_url 
       } as User;
       
-      // OPTIMISTIC UPDATE: Immediate reflection in UI
       setUserProfile(newProfileData);
       localStorage.setItem(`izlenext_profile_${user.id}`, JSON.stringify(newProfileData));
 
@@ -384,7 +376,6 @@ function App() {
           setProfileForm(prev => ({ ...prev, newPassword: '' }));
           setTimeout(() => { setIsEditingProfile(false); setProfileMessage(null); }, 1500);
       } catch (err: any) {
-          // Rollback on failure
           setUserProfile(originalProfile);
           if (originalProfile) localStorage.setItem(`izlenext_profile_${user.id}`, JSON.stringify(originalProfile));
           setProfileMessage({ type: 'error', text: err.message || 'Update failed.' });
