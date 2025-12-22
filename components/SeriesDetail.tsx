@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Series, Actor, Episode } from '../types';
 import { tmdb } from '../services/tmdb';
+import { omdb } from '../services/omdb';
 import { StreamingAvailability } from './StreamingAvailability';
 import { 
   Play, 
@@ -38,10 +40,33 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
   const [seasonEpisodes, setSeasonEpisodes] = useState<Record<number, Episode[]>>({});
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
+  
+  // Local state for OMDb enrichment data
+  const [enrichedData, setEnrichedData] = useState<Partial<Series>>({});
 
   useEffect(() => {
     setIsPlayingTrailer(false);
-  }, [series.id]);
+    setEnrichedData({}); // Reset enrichment on series change
+
+    const fetchOmdbEnrichment = async () => {
+        if (series.imdb_id) {
+            // Only fetch if data is missing from the prop
+            if (!series.awards || !series.director || !series.metascore) {
+                const data = await omdb.getDetails(series.imdb_id);
+                if (data) {
+                    setEnrichedData(data);
+                }
+            }
+        }
+    };
+
+    fetchOmdbEnrichment();
+  }, [series.id, series.imdb_id, series.awards, series.director, series.metascore]);
+
+  // Helper to get merged data (prefer prop, fallback to local fetch)
+  const getField = <K extends keyof Series>(key: K): Series[K] | undefined => {
+      return series[key] || (enrichedData[key] as Series[K]);
+  };
 
   const toggleSeason = async (seasonNumber: number) => {
       if (expandedSeason === seasonNumber) {
@@ -58,6 +83,13 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
           setLoadingEpisodes(false);
       }
   };
+
+  const metascore = getField('metascore');
+  const awards = getField('awards');
+  const director = getField('director');
+  const writer = getField('writer');
+  const imdbRating = getField('imdb_rating');
+  const imdbVotes = getField('imdb_votes');
 
   return (
     <div className="bg-navy-900 min-h-screen pb-12">
@@ -83,26 +115,26 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
 
                 {/* Header Info */}
                 <div className="flex-1 space-y-4 mb-4">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex flex-wrap items-center gap-3 mb-2">
                         <div className="flex items-center gap-1 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
                             <Star className="w-3 h-3 fill-current" />
                             {series.rating.toFixed(1)}/10
                         </div>
                         <span className="text-gray-400 text-sm border-r border-gray-600 pr-3">TMDb</span>
                         
-                        {series.imdb_rating && (
+                        {imdbRating && (
                             <>
                                 <div className="flex items-center gap-1 bg-[#F5C518] text-black px-2 py-1 rounded text-xs font-bold">
                                     <span className="font-black">IMDb</span>
-                                    {series.imdb_rating}
+                                    {imdbRating}
                                 </div>
-                                <span className="text-gray-400 text-xs">{series.imdb_votes} votes</span>
+                                {imdbVotes && <span className="text-gray-400 text-xs">{imdbVotes} votes</span>}
                             </>
                         )}
-                        {series.metascore && (
+                        {metascore && (
                             <div className="flex items-center gap-1 bg-[#66CC33] text-white px-2 py-1 rounded text-xs font-bold">
                                 <span>Metascore</span>
-                                {series.metascore}
+                                {metascore}
                             </div>
                         )}
                     </div>
@@ -174,19 +206,22 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                     <div className="animate-in fade-in duration-300 space-y-10">
                         {/* Synopsis */}
                         <section>
-                            <h3 className="text-white font-bold text-lg mb-3 border-l-4 border-red-600 pl-3">Synopsis</h3>
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-1 h-6 bg-red-600 rounded-full" />
+                                <h3 className="text-white font-bold text-lg">Synopsis</h3>
+                            </div>
                             <p className="text-gray-300 leading-relaxed text-sm md:text-base">
                                 {series.synopsis}
                             </p>
                         </section>
 
                          {/* OMDb Awards Section */}
-                         {series.awards && (
-                             <section className="bg-navy-800/50 p-4 rounded-lg border border-white/5 flex items-start gap-4">
-                                <Trophy className="w-8 h-8 text-[#F5C518] flex-shrink-0" />
+                         {awards && (
+                             <section className="bg-navy-800/50 p-6 rounded-xl border border-white/10 flex items-start gap-5 shadow-inner">
+                                <Trophy className="w-10 h-10 text-[#F5C518] flex-shrink-0 drop-shadow-lg" />
                                 <div>
-                                    <h4 className="text-white font-bold text-sm uppercase mb-1">Awards & Recognition</h4>
-                                    <p className="text-gray-300 text-sm">{series.awards}</p>
+                                    <h4 className="text-[#F5C518] font-bold text-xs uppercase tracking-widest mb-1">Awards & Recognition</h4>
+                                    <p className="text-white font-medium text-sm md:text-base leading-snug">{awards}</p>
                                 </div>
                              </section>
                          )}
@@ -194,7 +229,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                         {/* Latest Episodes Snippet */}
                         {series.latest_episode && (
                             <section>
-                                <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Latest Episode</h3>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="w-1 h-6 bg-red-600 rounded-full" />
+                                    <h3 className="text-white font-bold text-lg">Latest Episode</h3>
+                                </div>
                                 <div className="bg-navy-800 rounded-lg overflow-hidden border border-white/5 flex flex-col md:flex-row">
                                     <div className="md:w-64 relative aspect-video md:aspect-auto">
                                         <img 
@@ -225,7 +263,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                         {/* Trailer */}
                         {series.trailer_url && (
                             <section>
-                                <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Trailers & Videos</h3>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="w-1 h-6 bg-red-600 rounded-full" />
+                                    <h3 className="text-white font-bold text-lg">Trailers & Videos</h3>
+                                </div>
                                 <div className="aspect-video w-full rounded-xl overflow-hidden bg-black shadow-lg relative group">
                                     {!isPlayingTrailer ? (
                                         <div 
@@ -262,7 +303,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                          {cast.length > 0 && (
                             <section>
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-white font-bold text-lg border-l-4 border-red-600 pl-3">Top Cast</h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1 h-6 bg-red-600 rounded-full" />
+                                        <h3 className="text-white font-bold text-lg">Top Cast</h3>
+                                    </div>
                                     <button onClick={() => setActiveTab('CAST')} className="text-xs text-purple font-bold hover:underline">View All</button>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -284,7 +328,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                   {/* EPISODES TAB CONTENT */}
                   {activeTab === 'EPISODES' && (
                       <div className="animate-in fade-in duration-300 space-y-6">
-                           <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Seasons & Episodes</h3>
+                           <div className="flex items-center gap-2 mb-4">
+                                <div className="w-1 h-6 bg-red-600 rounded-full" />
+                                <h3 className="text-white font-bold text-lg">Seasons & Episodes</h3>
+                           </div>
                            {series.seasons && series.seasons.length > 0 ? (
                                <div className="space-y-4">
                                    {series.seasons.map((season) => (
@@ -376,7 +423,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                   {/* CAST TAB CONTENT */}
                   {activeTab === 'CAST' && (
                       <div className="animate-in fade-in duration-300 space-y-6">
-                           <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">Full Cast & Crew</h3>
+                           <div className="flex items-center gap-2 mb-4">
+                                <div className="w-1 h-6 bg-red-600 rounded-full" />
+                                <h3 className="text-white font-bold text-lg">Full Cast & Crew</h3>
+                           </div>
                            {cast.length > 0 ? (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4">
                                     {cast.map((actor) => (
@@ -406,7 +456,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                   {/* REVIEWS TAB CONTENT */}
                   {activeTab === 'REVIEWS' && (
                       <div className="animate-in fade-in duration-300 space-y-6">
-                          <h3 className="text-white font-bold text-lg mb-4 border-l-4 border-red-600 pl-3">User Reviews</h3>
+                          <div className="flex items-center gap-2 mb-4">
+                                <div className="w-1 h-6 bg-red-600 rounded-full" />
+                                <h3 className="text-white font-bold text-lg">User Reviews</h3>
+                          </div>
                           {series.reviews && series.reviews.length > 0 ? (
                               <div className="space-y-4">
                                   {series.reviews.map((review) => (
@@ -488,11 +541,11 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                            )}
                            <InfoRow label="Runtime" value={series.runtime || "-"} />
                            <InfoRow label="Original Title" value={series.title_en || series.title_tr} />
-                           {series.director && (
-                               <InfoRow label="Director" value={series.director} />
+                           {director && (
+                               <InfoRow label="Director" value={director} />
                            )}
-                           {series.writer && (
-                               <InfoRow label="Writer" value={series.writer} />
+                           {writer && (
+                               <InfoRow label="Writer" value={writer} />
                            )}
                            <div className="flex justify-between py-2 border-b border-gray-100">
                                <span className="font-bold text-navy-900 text-xs uppercase">Genres</span>

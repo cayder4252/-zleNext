@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { DiziCard } from './components/DiziCard';
@@ -10,26 +9,27 @@ import { AuthPage } from './pages/Auth';
 import { ViewState, User, Series, Actor, SiteConfig } from './types'; 
 import { MOCK_SERIES, MOCK_RATINGS } from './constants';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signOut, updateProfile as updateAuthProfile } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { onAuthStateChanged, signOut, updatePassword, updateProfile as updateAuthProfile } from 'firebase/auth';
+import { collection, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { tmdb, tmdbInit } from './services/tmdb';
 import { omdb, omdbInit } from './services/omdb'; 
 import { watchmodeInit } from './services/watchmode';
 import { settingsService } from './services/settingsService';
+// Added Heart and Plus icons to the imports
 import { 
-    Calendar as CalendarIcon, 
     Play, 
-    TrendingUp, 
-    BarChart2, 
-    Clock, 
-    ChevronRight,
-    PlayCircle,
+    X,
+    Bell,
     Edit2,
     Save,
-    X,
-    Bell
+    Lock,
+    User as UserIcon,
+    Link as LinkIcon,
+    CheckCircle,
+    AlertCircle,
+    Heart,
+    Plus
 } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewState>('HOME');
@@ -45,22 +45,30 @@ function App() {
   const [browseTitle, setBrowseTitle] = useState<string | null>(null);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [detailData, setDetailData] = useState<{ series: Series, cast: Actor[] } | null>(null);
-  const [profileForm, setProfileForm] = useState({ name: '', avatar_url: '', location: '', bio: '' });
+  const [localWatchlist, setLocalWatchlist] = useState<string[]>(() => {
+    const saved = localStorage.getItem('user_watchlist');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // --- INITIALIZE DYNAMIC CONFIG ---
+  // Profile Edit State
+  const [profileForm, setProfileForm] = useState({ name: '', bio: '', avatar_url: '', newPassword: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
   useEffect(() => {
     const unsubConfig = settingsService.subscribeToConfig((config) => {
-        // Find providers
-        const tmdbP = config.apiProviders.find(p => p.id === 'tmdb');
-        const omdbP = config.apiProviders.find(p => p.id === 'omdb');
-        const watchmodeP = config.apiProviders.find(p => p.id === 'watchmode');
-
-        if (tmdbP) tmdbInit(tmdbP.apiKey, tmdbP.isEnabled);
-        if (omdbP) omdbInit(omdbP.apiKey, omdbP.isEnabled);
-        if (watchmodeP) watchmodeInit(watchmodeP.apiKey, watchmodeP.isEnabled);
+        config.apiProviders.forEach(p => {
+          if (p.id === 'tmdb') tmdbInit(p.apiKey, p.isEnabled);
+          if (p.id === 'omdb') omdbInit(p.apiKey, p.isEnabled);
+          if (p.id === 'watchmode') watchmodeInit(p.apiKey, p.isEnabled);
+        });
     });
     return () => unsubConfig();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('user_watchlist', JSON.stringify(localWatchlist));
+  }, [localWatchlist]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -85,9 +93,21 @@ function App() {
   useEffect(() => {
     if (!user?.id) return;
     const unsub = onSnapshot(doc(db, 'users', user.id), (doc) => {
-        if (doc.exists()) setUserProfile(doc.data() as User);
+        if (doc.exists()) {
+          const profile = doc.data() as User;
+          setUserProfile(profile);
+          setProfileForm({
+              name: profile.name || user.name,
+              bio: profile.bio || '',
+              avatar_url: profile.avatar_url || '',
+              newPassword: ''
+          });
+          if (profile.watchlist) {
+            setLocalWatchlist(prev => Array.from(new Set([...prev, ...profile.watchlist!])));
+          }
+        }
     });
-    return () => unsub;
+    return () => unsub();
   }, [user?.id]);
 
   useEffect(() => {
@@ -113,29 +133,6 @@ function App() {
     };
     fetchData();
   }, []);
-
-  useEffect(() => {
-    if (currentView === 'CALENDAR' && calendarData.length === 0) {
-        tmdb.getCalendarShows().then(data => setCalendarData(data));
-    }
-  }, [currentView]);
-
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (searchQuery.trim().length > 2) {
-        setIsSearching(true);
-        setIsBrowsing(false);
-        setBrowseTitle(null);
-        const results = await tmdb.search(searchQuery);
-        setSeriesList(results);
-        setIsSearching(false);
-      } else if (searchQuery.trim().length === 0 && !loadingSeries && !isBrowsing) {
-        const homeData = await tmdb.getTrendingSeries();
-        setSeriesList(homeData);
-      }
-    }, 500);
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
 
   const handleLogin = (email: string, name: string, role: 'ADMIN' | 'USER') => {
     if (role === 'ADMIN') setCurrentView('ADMIN');
@@ -168,14 +165,17 @@ function App() {
   };
 
   const handleAddToWatchlist = async (id: string) => {
-    if (!user) { setCurrentView('LOGIN'); return; }
-    const currentWatchlist = userProfile?.watchlist || [];
-    const isAdded = currentWatchlist.includes(id);
-    const userRef = doc(db, 'users', user.id);
-    try {
-        if (isAdded) await updateDoc(userRef, { watchlist: arrayRemove(id) });
-        else { await updateDoc(userRef, { watchlist: arrayUnion(id) }); alert('Added to watchlist!'); }
-    } catch (error) {}
+    const isAdded = localWatchlist.includes(id);
+    if (isAdded) setLocalWatchlist(prev => prev.filter(item => item !== id));
+    else setLocalWatchlist(prev => [...prev, id]);
+
+    if (user) {
+      const userRef = doc(db, 'users', user.id);
+      try {
+          if (isAdded) await updateDoc(userRef, { watchlist: arrayRemove(id) });
+          else await updateDoc(userRef, { watchlist: arrayUnion(id) });
+      } catch (error) { console.error("Watchlist sync failed", error); }
+    }
   };
 
   const handleSeriesClick = async (id: string) => {
@@ -207,8 +207,48 @@ function App() {
       window.scrollTo(0, 0); 
   };
 
+  const handleSaveProfile = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) return;
+      setIsSavingProfile(true);
+      setProfileMessage(null);
+      
+      try {
+          // 1. Update Firestore
+          const userRef = doc(db, 'users', user.id);
+          await updateDoc(userRef, {
+              name: profileForm.name,
+              bio: profileForm.bio,
+              avatar_url: profileForm.avatar_url
+          });
+
+          // 2. Update Firebase Auth Profile
+          if (auth.currentUser) {
+              await updateAuthProfile(auth.currentUser, {
+                  displayName: profileForm.name,
+                  photoURL: profileForm.avatar_url
+              });
+
+              // 3. Update Password if provided
+              if (profileForm.newPassword) {
+                  await updatePassword(auth.currentUser, profileForm.newPassword);
+              }
+          }
+
+          setProfileMessage({ type: 'success', text: 'Profile updated successfully!' });
+          setTimeout(() => {
+              setIsEditingProfile(false);
+              setProfileMessage(null);
+          }, 2000);
+      } catch (err: any) {
+          setProfileMessage({ type: 'error', text: err.message || 'Failed to update profile. You may need to log in again to change your password.' });
+      } finally {
+          setIsSavingProfile(false);
+      }
+  };
+
   const featuredShow = seriesList.find(s => s.is_featured) || seriesList[0];
-  const watchlist = userProfile?.watchlist || [];
+  const watchlist = localWatchlist;
   const displayUser = user ? { ...user, ...userProfile } : null;
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   
@@ -337,20 +377,159 @@ function App() {
       case 'PROFILE':
         if (!user) { setCurrentView('LOGIN'); return null; }
         return (
-          <div className="container mx-auto px-4 py-12 relative">
+          <div className="container mx-auto px-4 py-12 relative animate-in fade-in duration-300">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div className="bg-navy-800 p-6 rounded-xl border border-white/5 text-center h-fit">
-                    <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-xl text-white overflow-hidden relative group">{displayUser?.avatar_url ? (<img src={displayUser.avatar_url} alt="Profile" className="w-full h-full object-cover" />) : (user.name.charAt(0).toUpperCase())}</div>
-                    <h2 className="text-xl font-bold text-white">{displayUser?.name || user.name}</h2>
-                    <p className="text-gray-400 text-sm mb-6">{userProfile?.bio || 'Series Addict'}</p>
-                    <button onClick={() => setIsEditingProfile(true)} className="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"><Edit2 className="w-4 h-4" /> Edit Profile</button>
-                </div>
-                <div className="md:col-span-3 space-y-8">
-                    <div>
-                        <h3 className="text-xl font-bold text-white mb-4">My Watchlist</h3>
-                        {watchlist.length === 0 ? ( <div className="bg-navy-800 rounded-xl p-12 text-center border border-white/5 border-dashed"><p className="text-gray-400">Your watchlist is empty.</p></div>
-                        ) : ( <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{seriesList.filter(s => watchlist.includes(s.id)).map(series => (<DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} />))}</div> )}
+                {/* Profile Sidebar */}
+                <div className="bg-navy-800 p-6 rounded-2xl border border-white/5 text-center h-fit shadow-xl">
+                    <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-2xl text-white overflow-hidden relative group">
+                        {displayUser?.avatar_url ? (
+                            <img src={displayUser.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                            user.name.charAt(0).toUpperCase()
+                        )}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onClick={() => setIsEditingProfile(true)}>
+                            <Edit2 className="w-6 h-6 text-white" />
+                        </div>
                     </div>
+                    <h2 className="text-xl font-bold text-white mb-1 truncate">{displayUser?.name || user.name}</h2>
+                    <p className="text-gray-500 text-sm mb-3 font-medium">{displayUser?.email}</p>
+                    <p className="text-gray-400 text-xs mb-6 px-2 italic line-clamp-3">{userProfile?.bio || 'Add a bio to your profile'}</p>
+                    
+                    {!isEditingProfile && (
+                        <button 
+                            onClick={() => setIsEditingProfile(true)} 
+                            className="w-full bg-white/5 hover:bg-white/10 text-white py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border border-white/5"
+                        >
+                            <Edit2 className="w-4 h-4" /> Edit Profile
+                        </button>
+                    )}
+                </div>
+
+                {/* Main Profile Content */}
+                <div className="md:col-span-3 space-y-8">
+                    {isEditingProfile ? (
+                        <div className="bg-navy-800 p-8 rounded-2xl border border-white/5 shadow-2xl animate-in slide-in-from-right-4 duration-300">
+                            <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
+                                <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                                    <UserIcon className="w-6 h-6 text-purple" /> Account Settings
+                                </h3>
+                                <button onClick={() => setIsEditingProfile(false)} className="text-gray-400 hover:text-white p-2">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSaveProfile} className="space-y-6">
+                                {profileMessage && (
+                                    <div className={`p-4 rounded-xl flex items-center gap-3 text-sm animate-in zoom-in-95 ${profileMessage.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>
+                                        {profileMessage.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                                        {profileMessage.text}
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Display Name</label>
+                                        <div className="relative">
+                                            <UserIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                                            <input 
+                                                type="text" 
+                                                value={profileForm.name} 
+                                                onChange={e => setProfileForm({...profileForm, name: e.target.value})}
+                                                className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Profile Picture URL</label>
+                                        <div className="relative">
+                                            <LinkIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="https://example.com/photo.jpg"
+                                                value={profileForm.avatar_url} 
+                                                onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})}
+                                                className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Short Bio</label>
+                                    <textarea 
+                                        rows={3}
+                                        value={profileForm.bio} 
+                                        onChange={e => setProfileForm({...profileForm, bio: e.target.value})}
+                                        placeholder="Tell us about your drama taste..."
+                                        className="w-full bg-navy-900 border border-white/5 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm resize-none"
+                                    />
+                                </div>
+
+                                <div className="pt-4 border-t border-white/5">
+                                    <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                                        <Lock className="w-4 h-4 text-red-500" /> Security
+                                    </h4>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">New Password (leave empty to keep current)</label>
+                                        <div className="relative max-w-sm">
+                                            <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                                            <input 
+                                                type="password" 
+                                                placeholder="••••••••"
+                                                value={profileForm.newPassword} 
+                                                onChange={e => setProfileForm({...profileForm, newPassword: e.target.value})}
+                                                className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 pt-4">
+                                    <button 
+                                        type="submit" 
+                                        disabled={isSavingProfile}
+                                        className="flex-1 bg-purple hover:bg-purple-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isSavingProfile ? (
+                                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        ) : (
+                                            <><Save className="w-5 h-5" /> Save All Changes</>
+                                        )}
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setIsEditingProfile(false)}
+                                        className="px-8 bg-white/5 hover:bg-white/10 text-white font-bold py-3.5 rounded-xl transition-all border border-white/5"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    ) : (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                                <Heart className="w-6 h-6 text-red-500" /> My Personal Watchlist
+                            </h3>
+                            {watchlist.length === 0 ? ( 
+                                <div className="bg-navy-800 rounded-2xl p-20 text-center border border-white/5 border-dashed shadow-inner">
+                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Plus className="w-8 h-8 text-gray-600" />
+                                    </div>
+                                    <p className="text-gray-400 font-medium">Your watchlist is currently empty.</p>
+                                    <p className="text-gray-600 text-sm mt-1">Start adding your favorite Turkish dramas to track them here.</p>
+                                    <button onClick={() => setCurrentView('HOME')} className="mt-6 bg-purple/10 text-purple hover:bg-purple/20 px-6 py-2 rounded-lg font-bold transition-colors">Browse Shows</button>
+                                </div>
+                            ) : ( 
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                    {seriesList.filter(s => watchlist.includes(s.id)).map(series => (
+                                        <DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />
+                                    ))}
+                                </div> 
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
           </div>
