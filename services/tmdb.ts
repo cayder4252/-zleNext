@@ -250,7 +250,12 @@ export const tmdb = {
         const today = new Date().toISOString().split('T')[0];
         const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}&with_original_language=${language}&sort_by=popularity.desc`;
+        let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}&sort_by=popularity.desc`;
+        
+        // If 'all' is selected, we don't filter by language to catch everything
+        if (language !== 'all') {
+            url += `&with_original_language=${language}`;
+        }
         
         if (type === 'tv') {
             url += `&air_date.gte=${today}&air_date.lte=${nextWeek}`;
@@ -260,7 +265,7 @@ export const tmdb = {
 
         const response = await fetch(url);
         const data = await response.json();
-        const results = data.results?.slice(0, 15) || [];
+        const results = data.results?.slice(0, 40) || []; // Increased slice to 40 to avoid missing shows
 
         // Fetch details to get air dates for calendar grouping
         const detailPromises = results.map((item: any) => 

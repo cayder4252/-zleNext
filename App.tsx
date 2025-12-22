@@ -7,7 +7,7 @@ import { SeriesDetail } from './components/SeriesDetail';
 import { CategoryRow } from './components/CategoryRow'; 
 import { AdminPanel } from './pages/Admin';
 import { AuthPage } from './pages/Auth';
-import { ViewState, User, Series, Actor, SiteConfig } from './types'; 
+import { ViewState, User, Series, Actor, SiteConfig, NewsArticle } from './types'; 
 import { MOCK_SERIES, MOCK_RATINGS } from './constants';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, updatePassword, updateProfile as updateAuthProfile } from 'firebase/auth';
@@ -16,6 +16,7 @@ import { tmdb, tmdbInit } from './services/tmdb';
 import { omdb, omdbInit } from './services/omdb'; 
 import { watchmodeInit } from './services/watchmode';
 import { settingsService } from './services/settingsService';
+import { newsService } from './services/newsService';
 import { 
     Play, 
     X,
@@ -33,14 +34,16 @@ import {
     Filter,
     Clapperboard,
     Tv as TvIcon,
-    // Fix: Added missing icons
     Calendar,
-    ChevronDown
+    ChevronDown,
+    ExternalLink,
+    Newspaper
 } from 'lucide-react';
 
 const SERIES_CACHE_KEY = 'izlenext_series_cache';
 
 const LANGUAGES = [
+    { code: 'all', name: 'All Languages', flag: '🌐' },
     { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
     { code: 'en', name: 'English', flag: '🇺🇸' },
     { code: 'ko', name: 'Korean', flag: '🇰🇷' },
@@ -64,9 +67,12 @@ function App() {
   });
 
   const [calendarData, setCalendarData] = useState<Series[]>([]);
-  const [calendarLanguage, setCalendarLanguage] = useState('tr');
+  const [calendarLanguage, setCalendarLanguage] = useState('all');
   const [calendarType, setCalendarType] = useState<'tv' | 'movie'>('tv');
   const [loadingCalendar, setLoadingCalendar] = useState(false);
+
+  const [news, setNews] = useState<NewsArticle[]>([]);
+  const [loadingNews, setLoadingNews] = useState(false);
 
   const [loadingSeries, setLoadingSeries] = useState(false);
   const [browseTitle, setBrowseTitle] = useState<string | null>(null);
@@ -90,6 +96,16 @@ function App() {
         });
     });
     return () => unsubConfig();
+  }, []);
+
+  useEffect(() => {
+    const fetchNews = async () => {
+      setLoadingNews(true);
+      const latest = await newsService.getLatestTurkishNews();
+      setNews(latest);
+      setLoadingNews(false);
+    };
+    fetchNews();
   }, []);
 
   useEffect(() => {
@@ -157,10 +173,8 @@ function App() {
     fetchData();
   }, []);
 
-  // Calendar Specific Effect
   useEffect(() => {
     if (currentView !== 'CALENDAR') return;
-    
     const fetchCalendar = async () => {
         setLoadingCalendar(true);
         try {
@@ -251,13 +265,10 @@ function App() {
   const handleSaveProfile = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user || !auth.currentUser) return;
-
       setIsSavingProfile(true);
       setProfileMessage(null);
-
       const originalProfile = { ...userProfile };
       setUserProfile(prev => prev ? { ...prev, name: profileForm.name, bio: profileForm.bio, avatar_url: profileForm.avatar_url } : null);
-
       try {
           const updatePromises: Promise<any>[] = [];
           const userRef = doc(db, 'users', user.id);
@@ -271,7 +282,6 @@ function App() {
               photoURL: profileForm.avatar_url
           }));
           await Promise.all(updatePromises);
-
           if (profileForm.newPassword) {
               try {
                   await updatePassword(auth.currentUser, profileForm.newPassword);
@@ -320,12 +330,7 @@ function App() {
 
   if (currentView === 'ADMIN') {
     if (!user || user.role !== 'ADMIN') { setCurrentView('LOGIN'); return null; }
-    return (
-        <div className="relative">
-             <button onClick={() => setCurrentView('HOME')} className="fixed bottom-4 right-4 z-50 bg-navy-900 text-white px-4 py-2 rounded-full shadow-lg border border-white/10 hover:bg-purple text-xs">Exit Admin</button>
-            <AdminPanel />
-        </div>
-    );
+    return <div className="relative"><button onClick={() => setCurrentView('HOME')} className="fixed bottom-4 right-4 z-50 bg-navy-900 text-white px-4 py-2 rounded-full shadow-lg border border-white/10 hover:bg-purple text-xs">Exit Admin</button><AdminPanel /></div>;
   }
 
   if (currentView === 'LOGIN' || currentView === 'REGISTER') {
@@ -361,7 +366,55 @@ function App() {
                 </div>
               </div>
             )}
+
+            {/* News Ticker Section */}
+            {!searchQuery && !isBrowsing && news.length > 0 && (
+              <div className="bg-navy-800 border-y border-white/5 py-3 overflow-hidden relative group">
+                <div className="container mx-auto px-4 flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-tighter whitespace-nowrap animate-pulse">
+                    <div className="w-2 h-2 bg-red-600 rounded-full" /> LIVE NEWS
+                  </div>
+                  <div className="flex-1 overflow-hidden relative h-6">
+                    <div className="flex gap-12 animate-marquee whitespace-nowrap hover:pause-animation">
+                      {news.map((item, idx) => (
+                        <a key={idx} href={item.url} target="_blank" className="text-xs text-gray-300 hover:text-white transition-colors flex items-center gap-2">
+                           <span className="text-purple font-bold">[{item.source.name}]</span> {item.title}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="container mx-auto px-4 py-12 space-y-16">
+              {/* Featured News Section */}
+              {!searchQuery && !isBrowsing && news.length > 0 && (
+                <section>
+                   <div className="flex items-center gap-2 mb-6">
+                        <div className="w-1 h-6 bg-purple rounded-full"></div>
+                        <h2 className="text-2xl font-bold text-white">Daily News Feed</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {news.slice(0, 3).map((item, i) => (
+                        <a key={i} href={item.url} target="_blank" className="group bg-navy-800 rounded-2xl overflow-hidden border border-white/5 hover:border-purple/30 transition-all flex flex-col">
+                           <div className="aspect-video relative overflow-hidden">
+                              <img src={item.urlToImage} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                              <div className="absolute top-3 left-3 bg-purple/90 backdrop-blur-md text-white text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest">{item.source.name}</div>
+                           </div>
+                           <div className="p-5 flex-1 flex flex-col justify-between">
+                              <h3 className="text-white font-bold leading-snug group-hover:text-purple transition-colors line-clamp-2 mb-3">{item.title}</h3>
+                              <div className="flex justify-between items-center mt-auto">
+                                <span className="text-[10px] text-gray-500 font-medium">{new Date(item.publishedAt).toLocaleDateString()}</span>
+                                <ExternalLink className="w-3 h-3 text-gray-600 group-hover:text-purple" />
+                              </div>
+                           </div>
+                        </a>
+                      ))}
+                    </div>
+                </section>
+              )}
+
               <section>
                 <div className="flex justify-between items-end mb-6">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -390,6 +443,18 @@ function App() {
                 )}
               </section>
             </div>
+            <style>{`
+              @keyframes marquee {
+                0% { transform: translateX(0); }
+                100% { transform: translateX(-50%); }
+              }
+              .animate-marquee {
+                display: inline-flex;
+                animation: marquee 40s linear infinite;
+                width: max-content;
+              }
+              .pause-animation { animation-play-state: paused; }
+            `}</style>
           </div>
         );
       case 'SERIES_DETAIL':
@@ -407,11 +472,10 @@ function App() {
                             <Calendar className="w-8 h-8 text-purple" />
                             Broadcast Calendar
                         </h2>
-                        <p className="text-gray-400 text-sm mt-1">Upcoming releases and episode air dates</p>
+                        <p className="text-gray-400 text-sm mt-1">Upcoming releases and episode air dates across all languages</p>
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-4">
-                        {/* Language Selector */}
                         <div className="flex flex-col gap-1.5">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
                                 <Globe className="w-3 h-3" /> Language
@@ -430,7 +494,6 @@ function App() {
                             </div>
                         </div>
 
-                        {/* Type Selector */}
                         <div className="flex flex-col gap-1.5">
                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
                                 <Filter className="w-3 h-3" /> Type
@@ -453,15 +516,12 @@ function App() {
                 {loadingCalendar ? (
                     <div className="flex flex-col items-center justify-center py-32 space-y-4 animate-in fade-in duration-300">
                         <div className="w-12 h-12 border-4 border-purple border-t-transparent rounded-full animate-spin" />
-                        <p className="text-gray-400 font-medium">Syncing {calendarType === 'tv' ? 'Episode' : 'Movie'} Releases...</p>
+                        <p className="text-gray-400 font-medium">Syncing Global Releases...</p>
                     </div>
                 ) : calendarData.length === 0 ? (
                     <div className="bg-navy-800 rounded-2xl p-20 text-center border border-white/5 border-dashed shadow-inner flex flex-col items-center gap-4 animate-in zoom-in-95 duration-300">
-                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center">
-                            <AlertCircle className="w-8 h-8 text-gray-600" />
-                        </div>
-                        <p className="text-gray-400 font-medium">No {calendarType === 'tv' ? 'broadcasts' : 'releases'} found for this week.</p>
-                        <p className="text-gray-600 text-sm">Try selecting a different language or content type above.</p>
+                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center"><AlertCircle className="w-8 h-8 text-gray-600" /></div>
+                        <p className="text-gray-400 font-medium">No {calendarType === 'tv' ? 'broadcasts' : 'releases'} found.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-7 gap-4 animate-in slide-in-from-bottom-4 duration-500">
@@ -473,53 +533,22 @@ function App() {
                                         <span className="text-purple font-black uppercase text-[11px] tracking-widest">{day}</span>
                                         <span className="text-[10px] text-gray-500 font-bold bg-white/5 px-2 py-0.5 rounded-full">{showsForDay.length}</span>
                                     </div>
-                                    
                                     <div className="space-y-3">
                                         {showsForDay.map(show => (
-                                            <div 
-                                                key={show.id} 
-                                                onClick={() => handleSeriesClick(show.id)} 
-                                                className="bg-navy-900 border border-white/5 p-3 rounded-xl group/card hover:bg-purple/10 hover:border-purple/30 transition-all cursor-pointer relative overflow-hidden"
-                                            >
-                                                {/* Mini Type Indicator */}
-                                                <div className="absolute -right-1 -top-1 opacity-10 group-hover/card:opacity-30 transition-opacity">
-                                                    {calendarType === 'tv' ? <TvIcon className="w-10 h-10" /> : <Clapperboard className="w-10 h-10" />}
-                                                </div>
-
+                                            <div key={show.id} onClick={() => handleSeriesClick(show.id)} className="bg-navy-900 border border-white/5 p-3 rounded-xl group/card hover:bg-purple/10 hover:border-purple/30 transition-all cursor-pointer relative overflow-hidden">
                                                 <div className="flex justify-between items-start mb-2 relative z-10">
-                                                    <div className="text-[10px] text-purple font-black bg-purple/10 px-1.5 py-0.5 rounded">
-                                                        {show.next_episode?.air_date.split('-').slice(1).reverse().join('/')}
-                                                    </div>
-                                                    <button onClick={(e) => { e.stopPropagation(); alert(`Reminder set!`); }} className="text-gray-600 hover:text-white transition-colors">
-                                                        <Bell className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    <div className="text-[10px] text-purple font-black bg-purple/10 px-1.5 py-0.5 rounded">{show.next_episode?.air_date.split('-').slice(1).reverse().join('/')}</div>
+                                                    <button onClick={(e) => { e.stopPropagation(); alert(`Reminder set!`); }} className="text-gray-600 hover:text-white transition-colors"><Bell className="w-3.5 h-3.5" /></button>
                                                 </div>
-                                                
-                                                <div className="text-xs font-bold text-white leading-tight mb-1.5 line-clamp-2 group-hover/card:text-purple transition-colors relative z-10">
-                                                    {show.title_tr}
+                                                <div className="text-xs font-bold text-white leading-tight mb-1.5 line-clamp-2 group-hover/card:text-purple transition-colors relative z-10">{show.title_tr}</div>
+                                                <div className="text-[9px] text-gray-500 font-medium truncate flex items-center gap-1.5">
+                                                    <span className="w-1 h-1 bg-gray-600 rounded-full" />
+                                                    {calendarType === 'tv' ? `S${show.next_episode?.season_number} E${show.next_episode?.episode_number} • ${show.network}` : 'Movie Premier'}
                                                 </div>
-                                                
-                                                {calendarType === 'tv' && show.next_episode && (
-                                                    <div className="text-[9px] text-gray-500 font-medium truncate flex items-center gap-1.5">
-                                                        <span className="w-1 h-1 bg-gray-600 rounded-full" />
-                                                        S{show.next_episode.season_number} E{show.next_episode.episode_number} • {show.network}
-                                                    </div>
-                                                )}
-                                                {calendarType === 'movie' && (
-                                                    <div className="text-[9px] text-gray-500 font-medium truncate flex items-center gap-1.5">
-                                                        <span className="w-1 h-1 bg-gray-600 rounded-full" />
-                                                        Movie Premier
-                                                    </div>
-                                                )}
                                             </div>
                                         ))}
                                     </div>
-
-                                    {showsForDay.length === 0 && (
-                                        <div className="flex-1 flex items-center justify-center">
-                                            <div className="text-[10px] text-gray-700 text-center italic tracking-wider opacity-50">Empty Slate</div>
-                                        </div>
-                                    )}
+                                    {showsForDay.length === 0 && <div className="flex-1 flex items-center justify-center"><div className="text-[10px] text-gray-700 text-center italic tracking-wider opacity-50">Empty Slate</div></div>}
                                 </div>
                             );
                         })}
@@ -532,153 +561,64 @@ function App() {
         return (
           <div className="container mx-auto px-4 py-12 relative animate-in fade-in duration-300">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                {/* Profile Sidebar */}
                 <div className="bg-navy-800 p-6 rounded-2xl border border-white/5 text-center h-fit shadow-xl">
                     <div className="w-32 h-32 bg-purple rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold border-4 border-navy-900 shadow-2xl text-white overflow-hidden relative group">
-                        {displayUser?.avatar_url ? (
-                            <img src={displayUser.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                        ) : (
-                            user.name.charAt(0).toUpperCase()
-                        )}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onClick={() => setIsEditingProfile(true)}>
-                            <Edit2 className="w-6 h-6 text-white" />
-                        </div>
+                        {displayUser?.avatar_url ? <img src={displayUser.avatar_url} alt="Profile" className="w-full h-full object-cover" /> : user.name.charAt(0).toUpperCase()}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onClick={() => setIsEditingProfile(true)}><Edit2 className="w-6 h-6 text-white" /></div>
                     </div>
                     <h2 className="text-xl font-bold text-white mb-1 truncate">{displayUser?.name || user.name}</h2>
                     <p className="text-gray-500 text-sm mb-3 font-medium">{displayUser?.email}</p>
                     <p className="text-gray-400 text-xs mb-6 px-2 italic line-clamp-3">{userProfile?.bio || 'Add a bio to your profile'}</p>
-                    
-                    {!isEditingProfile && (
-                        <button 
-                            onClick={() => setIsEditingProfile(true)} 
-                            className="w-full bg-white/5 hover:bg-white/10 text-white py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border border-white/5"
-                        >
-                            <Edit2 className="w-4 h-4" /> Edit Profile
-                        </button>
-                    )}
+                    {!isEditingProfile && <button onClick={() => setIsEditingProfile(true)} className="w-full bg-white/5 hover:bg-white/10 text-white py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border border-white/5"><Edit2 className="w-4 h-4" /> Edit Profile</button>}
                 </div>
-
-                {/* Main Profile Content */}
                 <div className="md:col-span-3 space-y-8">
                     {isEditingProfile ? (
                         <div className="bg-navy-800 p-8 rounded-2xl border border-white/5 shadow-2xl animate-in slide-in-from-right-4 duration-300">
                             <div className="flex justify-between items-center mb-8 border-b border-white/5 pb-4">
-                                <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-                                    <UserIcon className="w-6 h-6 text-purple" /> Account Settings
-                                </h3>
-                                <button onClick={() => setIsEditingProfile(false)} className="text-gray-400 hover:text-white p-2">
-                                    <X className="w-5 h-5" />
-                                </button>
+                                <h3 className="text-2xl font-bold text-white flex items-center gap-2"><UserIcon className="w-6 h-6 text-purple" /> Account Settings</h3>
+                                <button onClick={() => setIsEditingProfile(false)} className="text-gray-400 hover:text-white p-2"><X className="w-5 h-5" /></button>
                             </div>
-
                             <form onSubmit={handleSaveProfile} className="space-y-6">
-                                {profileMessage && (
-                                    <div className={`p-4 rounded-xl flex items-center gap-3 text-sm animate-in zoom-in-95 ${profileMessage.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>
-                                        {profileMessage.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                                        {profileMessage.text}
-                                    </div>
-                                )}
-
+                                {profileMessage && <div className={`p-4 rounded-xl flex items-center gap-3 text-sm animate-in zoom-in-95 ${profileMessage.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>{profileMessage.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}{profileMessage.text}</div>}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Display Name</label>
-                                        <div className="relative">
-                                            <UserIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-                                            <input 
-                                                type="text" 
-                                                value={profileForm.name} 
-                                                onChange={e => setProfileForm({...profileForm, name: e.target.value})}
-                                                className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm"
-                                            />
-                                        </div>
+                                        <div className="relative"><UserIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" /><input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm" /></div>
                                     </div>
-
                                     <div className="space-y-2">
                                         <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Profile Picture URL</label>
-                                        <div className="relative">
-                                            <LinkIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-                                            <input 
-                                                type="text" 
-                                                placeholder="https://example.com/photo.jpg"
-                                                value={profileForm.avatar_url} 
-                                                onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})}
-                                                className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm"
-                                            />
-                                        </div>
+                                        <div className="relative"><LinkIcon className="absolute left-3 top-3 w-4 h-4 text-gray-500" /><input type="text" placeholder="https://example.com/photo.jpg" value={profileForm.avatar_url} onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm" /></div>
                                     </div>
                                 </div>
-
                                 <div className="space-y-2">
                                     <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Short Bio</label>
-                                    <textarea 
-                                        rows={3}
-                                        value={profileForm.bio} 
-                                        onChange={e => setProfileForm({...profileForm, bio: e.target.value})}
-                                        placeholder="Tell us about your drama taste..."
-                                        className="w-full bg-navy-900 border border-white/5 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm resize-none"
-                                    />
+                                    <textarea rows={3} value={profileForm.bio} onChange={e => setProfileForm({...profileForm, bio: e.target.value})} placeholder="Tell us about your drama taste..." className="w-full bg-navy-900 border border-white/5 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm resize-none" />
                                 </div>
-
                                 <div className="pt-4 border-t border-white/5">
-                                    <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                                        <Lock className="w-4 h-4 text-red-500" /> Security
-                                    </h4>
+                                    <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Lock className="w-4 h-4 text-red-500" /> Security</h4>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">New Password (leave empty to keep current)</label>
-                                        <div className="relative max-w-sm">
-                                            <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-                                            <input 
-                                                type="password" 
-                                                placeholder="••••••••"
-                                                value={profileForm.newPassword} 
-                                                onChange={e => setProfileForm({...profileForm, newPassword: e.target.value})}
-                                                className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm"
-                                            />
-                                        </div>
+                                        <label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">New Password</label>
+                                        <div className="relative max-w-sm"><Lock className="absolute left-3 top-3 w-4 h-4 text-gray-500" /><input type="password" placeholder="••••••••" value={profileForm.newPassword} onChange={e => setProfileForm({...profileForm, newPassword: e.target.value})} className="w-full bg-navy-900 border border-white/5 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-sm" /></div>
                                     </div>
                                 </div>
-
                                 <div className="flex gap-4 pt-4">
-                                    <button 
-                                        type="submit" 
-                                        disabled={isSavingProfile}
-                                        className="flex-1 bg-purple hover:bg-purple-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                        {isSavingProfile ? (
-                                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        ) : (
-                                            <><Save className="w-5 h-5" /> Save All Changes</>
-                                        )}
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setIsEditingProfile(false)}
-                                        className="px-8 bg-white/5 hover:bg-white/10 text-white font-bold py-3.5 rounded-xl transition-all border border-white/5"
-                                    >
-                                        Cancel
-                                    </button>
+                                    <button type="submit" disabled={isSavingProfile} className="flex-1 bg-purple hover:bg-purple-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50">{isSavingProfile ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save className="w-5 h-5" /> Save All Changes</>}</button>
+                                    <button type="button" onClick={() => setIsEditingProfile(false)} className="px-8 bg-white/5 hover:bg-white/10 text-white font-bold py-3.5 rounded-xl transition-all border border-white/5">Cancel</button>
                                 </div>
                             </form>
                         </div>
                     ) : (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                                <Heart className="w-6 h-6 text-red-500" /> My Personal Watchlist
-                            </h3>
+                            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Heart className="w-6 h-6 text-red-500" /> My Personal Watchlist</h3>
                             {watchlist.length === 0 ? ( 
                                 <div className="bg-navy-800 rounded-2xl p-20 text-center border border-white/5 border-dashed shadow-inner">
-                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <Plus className="w-8 h-8 text-gray-600" />
-                                    </div>
+                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4"><Plus className="w-8 h-8 text-gray-600" /></div>
                                     <p className="text-gray-400 font-medium">Your watchlist is currently empty.</p>
-                                    <p className="text-gray-600 text-sm mt-1">Start adding your favorite Turkish dramas to track them here.</p>
                                     <button onClick={() => setCurrentView('HOME')} className="mt-6 bg-purple/10 text-purple hover:bg-purple/20 px-6 py-2 rounded-lg font-bold transition-colors">Browse Shows</button>
                                 </div>
                             ) : ( 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                    {seriesList.filter(s => watchlist.includes(s.id)).map(series => (
-                                        <DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />
-                                    ))}
+                                    {seriesList.filter(s => watchlist.includes(s.id)).map(series => <DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />)}
                                 </div> 
                             )}
                         </div>
@@ -691,6 +631,6 @@ function App() {
     }
   };
 
-  return (<Layout currentView={currentView} onChangeView={setCurrentView} user={displayUser} onLogout={handleLogout} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onBrowse={handleBrowse}>{renderContent()}</Layout>);
+  return <Layout currentView={currentView} onChangeView={setCurrentView} user={displayUser} onLogout={handleLogout} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onBrowse={handleBrowse}>{renderContent()}</Layout>;
 }
 export default App;
