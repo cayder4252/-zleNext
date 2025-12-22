@@ -6,6 +6,7 @@ import { SiteConfig, ApiProvider } from '../types';
 export const DEFAULT_CONFIG: SiteConfig = {
   siteName: 'İZLE',
   siteNamePart2: 'NEXT',
+  logoUrl: '', // Reset to empty to start with default icon branding
   contactEmail: 'support@izlenext.com',
   contactPhone: '+90 212 000 00 00',
   address: 'Levent, Istanbul, Turkey',

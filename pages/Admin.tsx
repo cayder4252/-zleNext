@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  LayoutDashboard, Film, Users, Plus, TrendingUp, Image as ImageIcon, Trash2, X, Edit2, Save, Globe, Mail, Phone, MapPin, ShieldCheck, ToggleLeft, ToggleRight, Wifi, PlayCircle, Activity, UserX, CheckSquare, Square, MoreHorizontal, AlertTriangle, Shield
+  LayoutDashboard, Film, Users, Plus, TrendingUp, Image as ImageIcon, Trash2, X, Edit2, Save, Globe, Mail, Phone, MapPin, ShieldCheck, ToggleLeft, ToggleRight, Wifi, PlayCircle, Activity, UserX, CheckSquare, Square, MoreHorizontal, AlertTriangle, Shield, Link as LinkIcon
 } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, onSnapshot, query, addDoc, doc, updateDoc, deleteDoc, writeBatch, orderBy, limit } from 'firebase/firestore';
@@ -54,7 +54,6 @@ export const AdminPanel: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'MEDIA') fetchImages();
-    // Clear selections when switching tabs
     setSelectedSeries(new Set());
     setSelectedUsers(new Set());
   }, [activeTab]);
@@ -72,7 +71,6 @@ export const AdminPanel: React.FC = () => {
     } catch (e) {}
   };
 
-  // --- BULK ACTIONS ---
   const toggleSelectSeries = (id: string) => {
     const next = new Set(selectedSeries);
     if (next.has(id)) next.delete(id);
@@ -243,22 +241,32 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Identity Section */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                         <h3 className="font-bold text-gray-900 flex items-center gap-2 border-b border-gray-50 pb-3"><Globe className="w-4 h-4 text-purple" /> Site Identity</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Primary Brand</label>
-                                <input type="text" value={siteConfig.siteName} onChange={e => setSiteConfig({...siteConfig, siteName: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                        <div className="grid grid-cols-1 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Primary Brand</label>
+                                    <input type="text" value={siteConfig.siteName} onChange={e => setSiteConfig({...siteConfig, siteName: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Suffix (Optional)</label>
+                                    <input type="text" value={siteConfig.siteNamePart2} onChange={e => setSiteConfig({...siteConfig, siteNamePart2: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                                </div>
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Suffix (Optional)</label>
-                                <input type="text" value={siteConfig.siteNamePart2} onChange={e => setSiteConfig({...siteConfig, siteNamePart2: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1 flex items-center gap-1.5"><LinkIcon className="w-3 h-3" /> Logo Resource URL</label>
+                                <input type="text" value={siteConfig.logoUrl || ''} onChange={e => setSiteConfig({...siteConfig, logoUrl: e.target.value})} placeholder="https://path-to-your-logo.png" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                                {siteConfig.logoUrl && (
+                                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex flex-col items-center">
+                                        <span className="text-[9px] font-black text-gray-400 uppercase mb-2">Live Preview</span>
+                                        <img src={siteConfig.logoUrl} className="h-12 object-contain" alt="Logo Preview" />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Contact Information Section */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                         <h3 className="font-bold text-gray-900 flex items-center gap-2 border-b border-gray-50 pb-3"><Mail className="w-4 h-4 text-purple" /> Contact Information</h3>
                         <div className="space-y-4">
@@ -277,7 +285,6 @@ export const AdminPanel: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* API Connectors Section */}
                     <div className="md:col-span-2 bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                         <div className="flex justify-between items-center border-b border-gray-50 pb-3">
                             <h3 className="font-bold text-gray-900 flex items-center gap-2"><Wifi className="w-4 h-4 text-purple" /> API Management</h3>
@@ -332,7 +339,6 @@ export const AdminPanel: React.FC = () => {
                 <button onClick={() => handleOpenSeriesModal()} className="bg-purple text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-purple/10 transition-transform active:scale-95"><Plus className="w-4 h-4" /> Create New</button>
             </div>
 
-            {/* Bulk Action Bar (Shows) */}
             {selectedSeries.size > 0 && (
               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white px-6 py-4 rounded-2xl shadow-2xl border border-gray-200 flex items-center gap-6 animate-in slide-in-from-bottom-4 z-40 ring-1 ring-black/5">
                 <div className="flex items-center gap-3 pr-6 border-r border-gray-100">
@@ -408,7 +414,6 @@ export const AdminPanel: React.FC = () => {
                 </div>
             </div>
 
-            {/* Bulk Action Bar (Users) */}
             {selectedUsers.size > 0 && (
               <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white px-6 py-4 rounded-2xl shadow-2xl border border-gray-200 flex items-center gap-6 animate-in slide-in-from-bottom-4 z-40 ring-1 ring-black/5">
                 <div className="flex items-center gap-3 pr-6 border-r border-gray-100">
@@ -490,7 +495,6 @@ export const AdminPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Add API Provider Modal */}
       {isAddApiModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">

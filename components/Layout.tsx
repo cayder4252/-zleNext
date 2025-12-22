@@ -27,8 +27,8 @@ export const Layout: React.FC<LayoutProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
-  // Initialize from cache immediately to prevent blank screen
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => settingsService.getCachedConfig());
+  const [logoError, setLogoError] = useState(false);
   
   const startMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -45,6 +45,7 @@ export const Layout: React.FC<LayoutProps> = ({
   useEffect(() => {
     const unsub = settingsService.subscribeToConfig((config) => {
       setSiteConfig(config);
+      setLogoError(false); // Reset error state on config change
       document.title = `${config.siteName}${config.siteNamePart2} - Track Turkish Dramas`;
     });
 
@@ -69,14 +70,6 @@ export const Layout: React.FC<LayoutProps> = ({
       unsub();
     };
   }, []);
-
-  useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-  }, [isMobileMenuOpen]);
 
   const handleGenreClick = (genreName: string, id: number) => {
       onBrowse(`${genreName} Series`, 'discover/tv', `with_genres=${id}&sort_by=popularity.desc`);
@@ -144,8 +137,6 @@ export const Layout: React.FC<LayoutProps> = ({
       { name: 'Western', id: 37 },
   ];
 
-  // We no longer return null here. siteConfig is guaranteed to have a value from DEFAULT_CONFIG or cache.
-
   return (
     <div className="min-h-screen bg-navy-900 flex flex-col font-sans">
       <header className="sticky top-0 z-50 bg-navy-900/90 backdrop-blur-md border-b border-white/10 shadow-lg">
@@ -153,8 +144,13 @@ export const Layout: React.FC<LayoutProps> = ({
           
           <div className="flex items-center gap-4 lg:gap-8">
               <div className="flex items-center gap-2 cursor-pointer group select-none" onClick={() => onChangeView('HOME')}>
-                {siteConfig.logoUrl ? (
-                  <img src={siteConfig.logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-contain shadow-lg" />
+                {siteConfig.logoUrl && !logoError ? (
+                  <img 
+                    src={siteConfig.logoUrl} 
+                    alt="Logo" 
+                    className="h-8 w-auto object-contain shadow-lg" 
+                    onError={() => setLogoError(true)}
+                  />
                 ) : (
                   <div className="w-8 h-8 bg-purple rounded-lg flex items-center justify-center group-hover:bg-purple-light transition-colors shadow-lg shadow-purple/20">
                     <PlayCircle className="text-white w-5 h-5" fill="currentColor" />
@@ -364,8 +360,13 @@ export const Layout: React.FC<LayoutProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
             <div className="space-y-4">
               <div className="flex items-center gap-2 cursor-pointer group" onClick={() => onChangeView('HOME')}>
-                {siteConfig.logoUrl ? (
-                  <img src={siteConfig.logoUrl} alt="Logo" className="w-6 h-6 object-contain" />
+                {siteConfig.logoUrl && !logoError ? (
+                  <img 
+                    src={siteConfig.logoUrl} 
+                    alt="Logo" 
+                    className="h-8 w-auto object-contain" 
+                    onError={() => setLogoError(true)}
+                  />
                 ) : (
                   <div className="w-6 h-6 bg-purple rounded flex items-center justify-center group-hover:bg-purple-light transition-colors">
                     <PlayCircle className="text-white w-4 h-4" fill="currentColor" />
