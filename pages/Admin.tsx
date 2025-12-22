@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, Film, Users, Plus, TrendingUp, Image as ImageIcon, Trash2, X, Edit2, Save, Globe, Mail, Phone, MapPin, ShieldCheck, ToggleLeft, ToggleRight, Wifi, PlayCircle, Activity, UserX, CheckSquare, Square, MoreHorizontal, AlertTriangle, Shield, Link as LinkIcon
+  LayoutDashboard, Film, Users, Plus, TrendingUp, Image as ImageIcon, Trash2, X, Edit2, Save, Globe, Mail, Phone, MapPin, ShieldCheck, ToggleLeft, ToggleRight, Wifi, PlayCircle, Activity, UserX, CheckSquare, Square, MoreHorizontal, AlertTriangle, Shield, Link as LinkIcon, Upload, Loader2
 } from 'lucide-react';
 import { db, storage } from '../firebase';
 import { collection, onSnapshot, query, addDoc, doc, updateDoc, deleteDoc, writeBatch, orderBy, limit } from 'firebase/firestore';
@@ -21,6 +21,10 @@ export const AdminPanel: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [editingSeries, setEditingSeries] = useState<Partial<Series> | null>(null);
   const [genresInput, setGenresInput] = useState('');
+
+  // Logo Upload State
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Bulk Selection States
   const [selectedSeries, setSelectedSeries] = useState<Set<string>>(new Set());
@@ -69,6 +73,79 @@ export const AdminPanel: React.FC = () => {
       const imageUrls = await Promise.all(urlPromises);
       setImages(imageUrls);
     } catch (e) {}
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !siteConfig) return;
+
+    setIsUploadingLogo(true);
+    try {
+        const storageRef = ref(storage, `branding/logo_${Date.now()}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        setSiteConfig({ ...siteConfig, logoUrl: downloadURL });
+    } catch (error) {
+        console.error("Logo upload failed:", error);
+        alert("Failed to upload logo. Please try again.");
+    } finally {
+        setIsUploadingLogo(false);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    if (!siteConfig) return;
+    setIsSavingConfig(true);
+    try {
+      await settingsService.updateConfig(siteConfig);
+      alert("Website configuration saved to Firebase successfully!");
+    } catch (e) { alert("Save failed."); } finally { setIsSavingConfig(false); }
+  };
+
+  const updateApiProvider = (id: string, updates: Partial<ApiProvider>) => {
+    if (!siteConfig) return;
+    const newProviders = siteConfig.apiProviders.map(p => p.id === id ? { ...p, ...updates } : p);
+    setSiteConfig({ ...siteConfig, apiProviders: newProviders });
+  };
+
+  const addApiProvider = () => {
+    if (!siteConfig || !newApi.id || !newApi.name) return;
+    const newProviders = [...siteConfig.apiProviders, newApi];
+    setSiteConfig({ ...siteConfig, apiProviders: newProviders });
+    setNewApi({ id: '', name: '', apiKey: '', isEnabled: true, description: '' });
+    setIsAddApiModalOpen(false);
+  };
+
+  const removeApiProvider = (id: string) => {
+    if (!siteConfig) return;
+    if (confirm(`Are you sure you want to remove the ${id} API provider?`)) {
+      const newProviders = siteConfig.apiProviders.filter(p => p.id !== id);
+      setSiteConfig({ ...siteConfig, apiProviders: newProviders });
+    }
+  };
+
+  const handleOpenSeriesModal = (series?: Series) => {
+      if (series) {
+          setEditingSeries(series);
+          setGenresInput(series.genres?.join(', ') || '');
+      } else {
+          setEditingSeries({ title_tr: '', title_en: '', synopsis: '', status: 'Airing', network: '', poster_url: '', banner_url: '', rating: 0, episodes_total: 0, episodes_aired: 0, is_featured: false, social_links: {} });
+          setGenresInput('');
+      }
+      setIsSeriesModalOpen(true);
+  };
+
+  const handleSaveSeries = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingSeries) return;
+      try {
+          const genresArray = genresInput.split(',').map(g => g.trim()).filter(g => g !== '');
+          const dataToSave = { ...editingSeries, genres: genresArray, social_links: editingSeries.social_links || {} };
+          if (editingSeries.id) await updateDoc(doc(db, 'series', editingSeries.id), dataToSave);
+          else await addDoc(collection(db, 'series'), dataToSave);
+          setIsSeriesModalOpen(false);
+          setEditingSeries(null);
+      } catch (e) { alert("Save failed."); }
   };
 
   const toggleSelectSeries = (id: string) => {
@@ -125,61 +202,6 @@ export const AdminPanel: React.FC = () => {
     setSelectedUsers(new Set());
   };
 
-  const handleSaveConfig = async () => {
-    if (!siteConfig) return;
-    setIsSavingConfig(true);
-    try {
-      await settingsService.updateConfig(siteConfig);
-      alert("Website configuration saved successfully!");
-    } catch (e) { alert("Save failed."); } finally { setIsSavingConfig(false); }
-  };
-
-  const updateApiProvider = (id: string, updates: Partial<ApiProvider>) => {
-    if (!siteConfig) return;
-    const newProviders = siteConfig.apiProviders.map(p => p.id === id ? { ...p, ...updates } : p);
-    setSiteConfig({ ...siteConfig, apiProviders: newProviders });
-  };
-
-  const addApiProvider = () => {
-    if (!siteConfig || !newApi.id || !newApi.name) return;
-    const newProviders = [...siteConfig.apiProviders, newApi];
-    setSiteConfig({ ...siteConfig, apiProviders: newProviders });
-    setNewApi({ id: '', name: '', apiKey: '', isEnabled: true, description: '' });
-    setIsAddApiModalOpen(false);
-  };
-
-  const removeApiProvider = (id: string) => {
-    if (!siteConfig) return;
-    if (confirm(`Are you sure you want to remove the ${id} API provider?`)) {
-      const newProviders = siteConfig.apiProviders.filter(p => p.id !== id);
-      setSiteConfig({ ...siteConfig, apiProviders: newProviders });
-    }
-  };
-
-  const handleOpenSeriesModal = (series?: Series) => {
-      if (series) {
-          setEditingSeries(series);
-          setGenresInput(series.genres?.join(', ') || '');
-      } else {
-          setEditingSeries({ title_tr: '', title_en: '', synopsis: '', status: 'Airing', network: '', poster_url: '', banner_url: '', rating: 0, episodes_total: 0, episodes_aired: 0, is_featured: false, social_links: {} });
-          setGenresInput('');
-      }
-      setIsSeriesModalOpen(true);
-  };
-
-  const handleSaveSeries = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!editingSeries) return;
-      try {
-          const genresArray = genresInput.split(',').map(g => g.trim()).filter(g => g !== '');
-          const dataToSave = { ...editingSeries, genres: genresArray, social_links: editingSeries.social_links || {} };
-          if (editingSeries.id) await updateDoc(doc(db, 'series', editingSeries.id), dataToSave);
-          else await addDoc(collection(db, 'series'), dataToSave);
-          setIsSeriesModalOpen(false);
-          setEditingSeries(null);
-      } catch (e) { alert("Save failed."); }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex">
       <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-10 overflow-y-auto shadow-sm">
@@ -229,65 +251,98 @@ export const AdminPanel: React.FC = () => {
                 <div className="flex justify-between items-end border-b border-gray-200 pb-4">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">Website Management</h1>
-                        <p className="text-sm text-gray-500 mt-1">Configure global identity, contact details, and API connectors.</p>
+                        <p className="text-sm text-gray-500 mt-1">Configure global identity, branding, and contact details.</p>
                     </div>
                     <button 
                         onClick={handleSaveConfig}
                         disabled={isSavingConfig}
                         className="bg-purple hover:bg-purple-dark text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-purple/20 transition-all active:scale-95 disabled:opacity-50"
                     >
-                        {isSavingConfig ? 'Saving...' : <><Save className="w-4 h-4" /> Save All Settings</>}
+                        {isSavingConfig ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save All Settings</>}
                     </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Site Identity Card */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                         <h3 className="font-bold text-gray-900 flex items-center gap-2 border-b border-gray-50 pb-3"><Globe className="w-4 h-4 text-purple" /> Site Identity</h3>
-                        <div className="grid grid-cols-1 gap-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Primary Brand</label>
-                                    <input type="text" value={siteConfig.siteName} onChange={e => setSiteConfig({...siteConfig, siteName: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Suffix (Optional)</label>
-                                    <input type="text" value={siteConfig.siteNamePart2} onChange={e => setSiteConfig({...siteConfig, siteNamePart2: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
-                                </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Primary Brand</label>
+                                <input type="text" value={siteConfig.siteName} onChange={e => setSiteConfig({...siteConfig, siteName: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple/10" />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1 flex items-center gap-1.5"><LinkIcon className="w-3 h-3" /> Logo Resource URL</label>
-                                <input type="text" value={siteConfig.logoUrl || ''} onChange={e => setSiteConfig({...siteConfig, logoUrl: e.target.value})} placeholder="https://path-to-your-logo.png" className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
-                                {siteConfig.logoUrl && (
-                                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex flex-col items-center">
-                                        <span className="text-[9px] font-black text-gray-400 uppercase mb-2">Live Preview</span>
-                                        <img src={siteConfig.logoUrl} className="h-12 object-contain" alt="Logo Preview" />
-                                    </div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Suffix (Optional)</label>
+                                <input type="text" value={siteConfig.siteNamePart2} onChange={e => setSiteConfig({...siteConfig, siteNamePart2: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple/10" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Logo & Branding Card */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2 border-b border-gray-50 pb-3"><ImageIcon className="w-4 h-4 text-purple" /> Logo & Branding</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Logo Direct URL</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={siteConfig.logoUrl || ''} 
+                                        onChange={e => setSiteConfig({...siteConfig, logoUrl: e.target.value})} 
+                                        placeholder="https://..." 
+                                        className="flex-1 border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple/10" 
+                                    />
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploadingLogo}
+                                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                                        title="Upload from computer"
+                                    >
+                                        {isUploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                    </button>
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept="image/*" 
+                                        onChange={handleLogoUpload} 
+                                    />
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4 border border-dashed border-gray-200 flex flex-col items-center">
+                                <span className="text-[9px] font-black text-gray-400 uppercase mb-2">Live Logo Preview</span>
+                                {siteConfig.logoUrl ? (
+                                    <img src={siteConfig.logoUrl} className="h-10 object-contain drop-shadow-sm" alt="Logo Preview" />
+                                ) : (
+                                    <div className="h-10 flex items-center justify-center text-gray-300 italic text-xs">No logo set</div>
                                 )}
                             </div>
                         </div>
                     </div>
 
+                    {/* Contact Information Card */}
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                         <h3 className="font-bold text-gray-900 flex items-center gap-2 border-b border-gray-50 pb-3"><Mail className="w-4 h-4 text-purple" /> Contact Information</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Support Email</label>
-                                <input type="email" value={siteConfig.contactEmail} onChange={e => setSiteConfig({...siteConfig, contactEmail: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                                <input type="email" value={siteConfig.contactEmail} onChange={e => setSiteConfig({...siteConfig, contactEmail: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple/10" />
                             </div>
                             <div>
                                 <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Phone Number</label>
-                                <input type="text" value={siteConfig.contactPhone} onChange={e => setSiteConfig({...siteConfig, contactPhone: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                                <input type="text" value={siteConfig.contactPhone} onChange={e => setSiteConfig({...siteConfig, contactPhone: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple/10" />
                             </div>
                             <div>
                                 <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Address</label>
-                                <textarea rows={1} value={siteConfig.address} onChange={e => setSiteConfig({...siteConfig, address: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none resize-none" />
+                                <textarea rows={1} value={siteConfig.address} onChange={e => setSiteConfig({...siteConfig, address: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none resize-none focus:ring-2 focus:ring-purple/10" />
                             </div>
                         </div>
                     </div>
 
+                    {/* API Connectors Section */}
                     <div className="md:col-span-2 bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                         <div className="flex justify-between items-center border-b border-gray-50 pb-3">
-                            <h3 className="font-bold text-gray-900 flex items-center gap-2"><Wifi className="w-4 h-4 text-purple" /> API Management</h3>
+                            <h3 className="font-bold text-gray-900 flex items-center gap-2"><Wifi className="w-4 h-4 text-purple" /> API Connectors</h3>
                             <button onClick={() => setIsAddApiModalOpen(true)} className="text-xs font-bold bg-purple/10 text-purple px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-purple/20">
                                 <Plus className="w-3 h-3" /> Add Provider
                             </button>
@@ -332,6 +387,7 @@ export const AdminPanel: React.FC = () => {
             </div>
         )}
 
+        {/* Existing SHOWS, USERS, and MEDIA tabs remain the same... */}
         {activeTab === 'SHOWS' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -408,7 +464,7 @@ export const AdminPanel: React.FC = () => {
         {activeTab === 'USERS' && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+                <h1 className="text-2xl font-bold text-gray-900">User Manager</h1>
                 <div className="flex items-center gap-4 text-sm text-gray-500 bg-white px-4 py-2 rounded-lg border border-gray-200">
                   <span className="flex items-center gap-1.5"><Users className="w-4 h-4" /> {usersList.length} Total Users</span>
                 </div>
