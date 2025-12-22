@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Series, Actor, Episode } from '../types';
+import { Series, Actor, Episode, Review, User } from '../types';
 import { tmdb } from '../services/tmdb';
 import { omdb } from '../services/omdb';
+import { db } from '../firebase';
+import { collection, onSnapshot, addDoc, query, orderBy, doc, updateDoc, increment } from 'firebase/firestore';
 import { StreamingAvailability } from './StreamingAvailability';
 import { 
   Play, 
@@ -25,7 +27,12 @@ import {
   Trophy,
   Film,
   PenTool,
-  X
+  X,
+  ThumbsUp,
+  ThumbsDown,
+  Send,
+  Loader2,
+  PlayCircle
 } from 'lucide-react';
 
 interface SeriesDetailProps {
@@ -33,15 +40,22 @@ interface SeriesDetailProps {
   cast: Actor[];
   onAddToWatchlist: (id: string) => void;
   isInWatchlist: boolean;
+  user: User | null;
 }
 
-export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddToWatchlist, isInWatchlist }) => {
+export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddToWatchlist, isInWatchlist, user }) => {
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'EPISODES' | 'CAST' | 'REVIEWS'>('OVERVIEW');
   const [expandedSeason, setExpandedSeason] = useState<number | null>(null);
   const [seasonEpisodes, setSeasonEpisodes] = useState<Record<number, Episode[]>>({});
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
   
+  // Community Review State
+  const [communityReviews, setCommunityReviews] = useState<Review[]>([]);
+  const [newReviewText, setNewReviewText] = useState('');
+  const [newReviewRating, setNewReviewRating] = useState(10);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
   // Local state for OMDb enrichment data
   const [enrichedData, setEnrichedData] = useState<Partial<Series>>({});
 
@@ -62,7 +76,19 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
     };
 
     fetchOmdbEnrichment();
-  }, [series.id, series.imdb_id, series.awards, series.director, series.metascore]);
+
+    // Fetch Community Reviews from Firestore
+    const reviewsRef = collection(db, 'series', series.id, 'reviews');
+    const q = query(reviewsRef, orderBy('created_at', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const reviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
+        setCommunityReviews(reviews);
+    });
+
+    return () => {
+        unsubscribe();
+    };
+  }, [series.id, series.imdb_id]);
 
   // Helper to get merged data (prefer prop, fallback to local fetch)
   const getField = <K extends keyof Series>(key: K): Series[K] | undefined => {
@@ -85,12 +111,77 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
       }
   };
 
+  const handleSubmitReview = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user || !newReviewText.trim()) return;
+
+      setIsSubmittingReview(true);
+      try {
+          const reviewsRef = collection(db, 'series', series.id, 'reviews');
+          await addDoc(reviewsRef, {
+              author: user.name,
+              userId: user.id,
+              content: newReviewText,
+              rating: newReviewRating,
+              avatar_path: user.avatar_url || null,
+              created_at: new Date().toISOString(),
+              likes: 0,
+              dislikes: 0,
+              votedBy: {}
+          });
+          setNewReviewText('');
+          setNewReviewRating(10);
+      } catch (err) {
+          console.error("Failed to post review:", err);
+      } finally {
+          setIsSubmittingReview(false);
+      }
+  };
+
+  const handleVote = async (reviewId: string, type: 'like' | 'dislike') => {
+      if (!user) {
+          alert("Please login to vote on reviews.");
+          return;
+      }
+
+      const review = communityReviews.find(r => r.id === reviewId);
+      if (!review) return;
+
+      const userVote = review.votedBy?.[user.id];
+      const reviewRef = doc(db, 'series', series.id, 'reviews', reviewId);
+
+      const updates: any = {};
+
+      if (userVote === type) {
+          // Remove existing vote
+          updates[`votedBy.${user.id}`] = null;
+          updates[type === 'like' ? 'likes' : 'dislikes'] = increment(-1);
+      } else {
+          // Add or change vote
+          if (userVote) {
+              // Switch vote
+              updates[userVote === 'like' ? 'likes' : 'dislikes'] = increment(-1);
+          }
+          updates[`votedBy.${user.id}`] = type;
+          updates[type === 'like' ? 'likes' : 'dislikes'] = increment(1);
+      }
+
+      try {
+          await updateDoc(reviewRef, updates);
+      } catch (err) {
+          console.error("Voting failed:", err);
+      }
+  };
+
   const metascore = getField('metascore');
   const awards = getField('awards');
   const director = getField('director');
   const writer = getField('writer');
   const imdbRating = getField('imdb_rating');
   const imdbVotes = getField('imdb_votes');
+
+  // Combine TMDb and Community Reviews
+  const allReviews = [...communityReviews, ...(series.reviews || [])];
 
   return (
     <div className="bg-navy-900 min-h-screen pb-12">
@@ -103,7 +194,7 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                 alt="Banner" 
                 className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/80 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/60 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/40 to-transparent" />
         </div>
 
@@ -242,7 +333,7 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                                             className="w-full h-full object-cover"
                                         />
                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                            <PlayCircleIcon className="w-10 h-10 text-white opacity-80" />
+                                            <PlayCircle className="w-10 h-10 text-white opacity-80" />
                                         </div>
                                     </div>
                                     <div className="p-4 flex-1">
@@ -465,50 +556,142 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
 
                   {/* REVIEWS TAB CONTENT */}
                   {activeTab === 'REVIEWS' && (
-                      <div className="animate-in fade-in duration-300 space-y-6">
-                          <div className="flex items-center gap-2 mb-4">
-                                <div className="w-1 h-6 bg-red-600 rounded-full" />
-                                <h3 className="text-white font-bold text-lg">User Reviews</h3>
-                          </div>
-                          {series.reviews && series.reviews.length > 0 ? (
-                              <div className="space-y-4">
-                                  {series.reviews.map((review) => (
-                                      <div key={review.id} className="bg-navy-800 p-6 rounded-xl border border-white/5">
-                                          <div className="flex justify-between items-start mb-4">
-                                              <div className="flex items-center gap-3">
-                                                  <div className="w-10 h-10 rounded-full bg-purple flex items-center justify-center text-white font-bold overflow-hidden">
-                                                      {review.avatar_path ? (
-                                                          <img src={review.avatar_path} alt={review.author} className="w-full h-full object-cover" />
-                                                      ) : (
-                                                          review.author.charAt(0).toUpperCase()
-                                                      )}
-                                                  </div>
-                                                  <div>
-                                                      <div className="font-bold text-white text-sm">A Review by {review.author}</div>
-                                                      <div className="text-xs text-gray-500">
-                                                          Written on {new Date(review.created_at).toLocaleDateString()}
-                                                      </div>
-                                                  </div>
-                                              </div>
-                                              {review.rating && (
-                                                  <div className="bg-navy-900 border border-white/10 px-3 py-1 rounded-lg flex items-center gap-1">
-                                                      <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                                                      <span className="text-white font-bold text-sm">{review.rating}</span>
-                                                  </div>
-                                              )}
+                      <div className="animate-in fade-in duration-300 space-y-10">
+                          {/* Post Review Form */}
+                          <section>
+                              <div className="flex items-center gap-2 mb-6">
+                                    <div className="w-1 h-6 bg-purple rounded-full shadow-lg shadow-purple/50" />
+                                    <h3 className="text-white font-black text-lg uppercase tracking-tighter">Community Pulse</h3>
+                              </div>
+                              {user ? (
+                                  <div className="bg-navy-800/50 backdrop-blur-xl p-6 rounded-2xl border border-white/5 shadow-xl">
+                                      <div className="flex items-center gap-3 mb-4">
+                                          <div className="w-10 h-10 rounded-full bg-purple flex items-center justify-center font-bold text-white overflow-hidden">
+                                              {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover" /> : user.name.charAt(0)}
                                           </div>
-                                          <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                                              {review.content}
+                                          <div>
+                                              <div className="text-sm font-bold text-white">{user.name}</div>
+                                              <div className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Share your thoughts</div>
                                           </div>
                                       </div>
-                                  ))}
-                              </div>
-                          ) : (
-                              <div className="text-center py-20 text-gray-500 bg-navy-800 rounded-xl border border-white/5 border-dashed flex flex-col items-center gap-4">
-                                  <MessageSquare className="w-12 h-12 text-gray-600" />
-                                  <p>No reviews available yet for this series.</p>
-                              </div>
-                          )}
+                                      <form onSubmit={handleSubmitReview} className="space-y-4">
+                                          <textarea 
+                                              value={newReviewText}
+                                              onChange={(e) => setNewReviewText(e.target.value)}
+                                              placeholder="What do you think about this series? Write your review here..."
+                                              className="w-full bg-navy-900 border border-white/5 text-white px-5 py-4 rounded-xl focus:outline-none focus:border-purple/50 transition-all text-sm resize-none"
+                                              rows={4}
+                                          />
+                                          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                                              <div className="flex items-center gap-3">
+                                                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Your Rating:</span>
+                                                  <div className="flex gap-1">
+                                                      {[1,2,3,4,5,6,7,8,9,10].map(num => (
+                                                          <button 
+                                                            key={num} 
+                                                            type="button"
+                                                            onClick={() => setNewReviewRating(num)}
+                                                            className={`w-6 h-6 rounded text-[10px] font-bold transition-all ${newReviewRating >= num ? 'bg-purple text-white' : 'bg-white/5 text-gray-500 hover:bg-white/10'}`}
+                                                          >
+                                                              {num}
+                                                          </button>
+                                                      ))}
+                                                  </div>
+                                              </div>
+                                              <button 
+                                                disabled={isSubmittingReview || !newReviewText.trim()}
+                                                className="bg-purple hover:bg-purple-light text-white px-8 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-purple/20"
+                                              >
+                                                  {isSubmittingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Post Review</>}
+                                              </button>
+                                          </div>
+                                      </form>
+                                  </div>
+                              ) : (
+                                  <div className="bg-navy-800/30 p-8 rounded-2xl border border-white/5 border-dashed text-center flex flex-col items-center gap-4">
+                                      <p className="text-gray-400 text-sm font-medium">Want to share your opinion? Log in to leave a review.</p>
+                                      <button className="text-purple bg-purple/10 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-[0.2em] border border-purple/20 hover:bg-purple/20 transition-all">Login Required</button>
+                                  </div>
+                              )}
+                          </section>
+
+                          {/* Reviews List */}
+                          <div className="space-y-6">
+                            {allReviews.length > 0 ? (
+                                allReviews.map((review) => {
+                                    const isCommunityReview = !!review.userId;
+                                    const userVote = user ? review.votedBy?.[user.id] : null;
+
+                                    return (
+                                        <div key={review.id} className={`group bg-navy-800/40 backdrop-blur-md p-8 rounded-[2.5rem] border border-white/5 transition-all hover:border-purple/30 ${isCommunityReview ? 'ring-1 ring-purple/5' : ''}`}>
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple to-purple-dark flex items-center justify-center text-white font-black overflow-hidden shadow-xl">
+                                                        {review.avatar_path ? (
+                                                            <img src={review.avatar_path} alt={review.author} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            review.author.charAt(0).toUpperCase()
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="font-black text-white uppercase tracking-tighter text-base">{review.author}</div>
+                                                            {isCommunityReview && (
+                                                                <span className="bg-purple/20 text-purple text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border border-purple/30">Community</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+                                                            {new Date(review.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {review.rating && (
+                                                    <div className="bg-navy-900/50 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2 shadow-2xl">
+                                                        <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                                                        <span className="text-white font-black text-lg tracking-tighter">{review.rating}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-line mb-8 font-medium opacity-90">
+                                                {review.content}
+                                            </div>
+
+                                            {isCommunityReview && (
+                                                <div className="flex items-center gap-6 pt-6 border-t border-white/5">
+                                                    <button 
+                                                        onClick={() => handleVote(review.id, 'like')}
+                                                        className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${userVote === 'like' ? 'text-green-500' : 'text-gray-500 hover:text-white'}`}
+                                                    >
+                                                        <ThumbsUp className={`w-4 h-4 ${userVote === 'like' ? 'fill-current' : ''}`} /> {review.likes || 0}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleVote(review.id, 'dislike')}
+                                                        className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${userVote === 'dislike' ? 'text-red-500' : 'text-gray-500 hover:text-white'}`}
+                                                    >
+                                                        <ThumbsDown className={`w-4 h-4 ${userVote === 'dislike' ? 'fill-current' : ''}`} /> {review.dislikes || 0}
+                                                    </button>
+                                                    
+                                                    <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button className="text-[10px] font-black text-purple uppercase tracking-widest hover:underline">Report Review</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="text-center py-24 text-gray-500 bg-navy-800/20 rounded-[3rem] border border-white/5 border-dashed flex flex-col items-center gap-6">
+                                    <div className="w-20 h-20 bg-navy-800 rounded-full flex items-center justify-center border border-white/5 shadow-inner">
+                                        <MessageSquare className="w-10 h-10 text-gray-700" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-white font-black text-lg uppercase tracking-tighter">No Voices Yet</p>
+                                        <p className="text-sm font-medium text-gray-500 max-w-xs mx-auto">This series hasn't received community feedback yet. Be the first to share your experience!</p>
+                                    </div>
+                                </div>
+                            )}
+                          </div>
                       </div>
                   )}
 
@@ -589,11 +772,4 @@ const InfoRow = ({ label, value }: { label: string, value: string }) => (
         <span className="font-bold text-navy-900 text-xs uppercase">{label}</span>
         <span className="text-gray-600 text-xs font-medium max-w-[150px] truncate text-right">{value}</span>
     </div>
-);
-
-const PlayCircleIcon = ({ className }: { className?: string }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="2"/>
-        <path d="M10 8L16 12L10 16V8Z" fill="currentColor"/>
-    </svg>
 );

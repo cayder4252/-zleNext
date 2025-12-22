@@ -79,6 +79,11 @@ export interface Review {
   created_at: string;
   rating?: number;
   avatar_path?: string;
+  // Community additions
+  userId?: string;
+  likes?: number;
+  dislikes?: number;
+  votedBy?: Record<string, 'like' | 'dislike'>;
 }
 
 export interface Actor {
