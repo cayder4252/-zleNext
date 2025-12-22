@@ -333,28 +333,32 @@ function App() {
   };
 
   const handleSeriesClick = async (id: string) => {
-      const isTmdbId = /^\d+$/.test(id);
-      if (isTmdbId) {
+      // Internal ID is now standardized as tv_id or movie_id
+      const isInternalId = id.includes('_');
+      if (isInternalId) {
           try {
-              let data = await tmdb.getDetails(id, 'tv');
+              const [type, rawId] = id.split('_');
+              let data = await tmdb.getDetails(rawId, type as 'movie' | 'tv');
               if (data.series.imdb_id) {
                   const omdbData = await omdb.getDetails(data.series.imdb_id);
                   if (omdbData) data.series = { ...data.series, ...omdbData };
               }
               setDetailData(data);
           } catch (e) {
-               try {
-                   let data = await tmdb.getDetails(id, 'movie');
-                   if (data.series.imdb_id) {
-                      const omdbData = await omdb.getDetails(data.series.imdb_id);
-                      if (omdbData) data.series = { ...data.series, ...omdbData };
-                   }
-                   setDetailData(data);
-               } catch (err) {}
+               console.error("Detail fetch failed", e);
           }
       } else {
-          const localSeries = seriesList.find(s => s.id === id);
-          if (localSeries) setDetailData({ series: localSeries, cast: [] });
+          // Fallback for legacy numeric IDs (assume TV) or local series
+          const isNumeric = /^\d+$/.test(id);
+          if (isNumeric) {
+               try {
+                  let data = await tmdb.getDetails(id, 'tv');
+                  setDetailData(data);
+               } catch (e) {}
+          } else {
+              const localSeries = seriesList.find(s => s.id === id);
+              if (localSeries) setDetailData({ series: localSeries, cast: [] });
+          }
       }
       setSelectedSeriesId(id);
       setCurrentView('SERIES_DETAIL');
@@ -369,7 +373,6 @@ function App() {
       
       const originalProfile = { ...userProfile };
       
-      // OPTIMISTIC UPDATE: Instant UI reflection
       const newProfileData = { 
         ...userProfile, 
         name: profileForm.name, 
@@ -378,7 +381,6 @@ function App() {
       } as User;
       
       setUserProfile(newProfileData);
-      // Persist immediately to cache
       localStorage.setItem('izlenext_user_profile', JSON.stringify(newProfileData));
 
       try {
@@ -411,7 +413,6 @@ function App() {
               setProfileMessage(null);
           }, 1500);
       } catch (err: any) {
-          // Rollback on error
           setUserProfile(originalProfile);
           if (originalProfile) localStorage.setItem('izlenext_user_profile', JSON.stringify(originalProfile));
           else localStorage.removeItem('izlenext_user_profile');
@@ -422,7 +423,6 @@ function App() {
   };
 
   const watchlist = localWatchlist;
-  // Combining auth metadata with Firestore profile details for display
   const displayUser = user ? { ...user, ...userProfile } : null;
   
   const calendarGrouped = calendarData.reduce((acc, series) => {

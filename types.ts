@@ -1,6 +1,7 @@
 
 export interface Series {
   id: string;
+  media_type?: 'movie' | 'tv'; // Added to ensure unique global ID creation
   title_tr: string;
   title_en: string;
   synopsis: string;

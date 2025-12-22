@@ -29,6 +29,7 @@ interface TmdbItem {
   first_air_date?: string;
   genre_ids: number[];
   origin_country?: string[];
+  media_type?: string;
 }
 
 interface TmdbDetail extends TmdbItem {
@@ -94,7 +95,8 @@ const mapTmdbEpisode = (ep: TmdbEpisode): Episode => ({
 });
 
 const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
-  const isMovie = 'title' in item;
+  const isMovie = 'title' in item || item.media_type === 'movie';
+  const type: 'tv' | 'movie' = isMovie ? 'movie' : 'tv';
   const title = isMovie ? item.title : item.name;
   const originalTitle = isMovie ? item.original_title : item.original_name;
   const date = isMovie ? item.release_date : item.first_air_date;
@@ -145,7 +147,9 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
   })) : [];
 
   return {
-    id: item.id.toString(),
+    // Standardize ID to prevent collisions between TV and Movie IDs in Firestore
+    id: `${type}_${item.id}`,
+    media_type: type,
     title_tr: title || 'Untitled',
     title_en: originalTitle || 'Untitled',
     synopsis: item.overview || 'No synopsis available.',
@@ -176,7 +180,7 @@ export const tmdb = {
     try {
       const response = await fetch(`${BASE_URL}/trending/tv/${timeWindow}?api_key=${API_KEY}`);
       const data = await response.json();
-      return data.results.map(mapTmdbToSeries);
+      return data.results.map((item: any) => mapTmdbToSeries({ ...item, media_type: 'tv' }));
     } catch (error) {
       console.error("Error fetching trending series:", error);
       return [];
@@ -188,7 +192,7 @@ export const tmdb = {
     try {
       const response = await fetch(`${BASE_URL}/trending/movie/${timeWindow}?api_key=${API_KEY}`);
       const data = await response.json();
-      return data.results.map(mapTmdbToSeries);
+      return data.results.map((item: any) => mapTmdbToSeries({ ...item, media_type: 'movie' }));
     } catch (error) {
        console.error("Error fetching trending movies:", error);
        return [];
@@ -200,7 +204,7 @@ export const tmdb = {
     try {
       const response = await fetch(`${BASE_URL}/search/multi?api_key=${API_KEY}&query=${encodeURIComponent(query)}`);
       const data = await response.json();
-      const results = data.results.filter((item: any) => item.media_type !== 'person');
+      const results = data.results.filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
       return results.map(mapTmdbToSeries);
     } catch (error) {
       console.error("Error searching:", error);
@@ -211,10 +215,12 @@ export const tmdb = {
   getDetails: async (id: string, type: 'movie' | 'tv' = 'tv'): Promise<{ series: Series, cast: Actor[] }> => {
     if (!IS_ENABLED) throw new Error("TMDb is disabled");
     try {
-      const response = await fetch(`${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons,external_ids`);
+      // Strip prefix if present (Internal ID is type_id)
+      const rawId = id.includes('_') ? id.split('_')[1] : id;
+      const response = await fetch(`${BASE_URL}/${type}/${rawId}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons,external_ids`);
       const data = await response.json();
       
-      const series = mapTmdbToSeries(data);
+      const series = mapTmdbToSeries({ ...data, media_type: type });
       
       const cast: Actor[] = data.credits.cast.slice(0, 20).map((c: any) => ({
         id: c.id.toString(),
@@ -234,7 +240,8 @@ export const tmdb = {
   getSeasonDetails: async (seriesId: string, seasonNumber: number): Promise<Episode[]> => {
       if (!IS_ENABLED) return [];
       try {
-          const response = await fetch(`${BASE_URL}/tv/${seriesId}/season/${seasonNumber}?api_key=${API_KEY}`);
+          const rawId = seriesId.includes('_') ? seriesId.split('_')[1] : seriesId;
+          const response = await fetch(`${BASE_URL}/tv/${rawId}/season/${seasonNumber}?api_key=${API_KEY}`);
           const data = await response.json();
           if (!data.episodes) return [];
           return data.episodes.map(mapTmdbEpisode);
@@ -248,16 +255,12 @@ export const tmdb = {
     if (!IS_ENABLED) return [];
     try {
         const today = new Date().toISOString().split('T')[0];
-        // Fetch a broader window to show truly upcoming content (next 30 days)
         const rangeEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
         let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}`;
-        
-        // Prioritize upcoming release dates by sorting chronologically
         if (type === 'tv') {
             url += `&air_date.gte=${today}&air_date.lte=${rangeEnd}&sort_by=popularity.desc`;
         } else {
-            // For movies, we want future releases
             url += `&primary_release_date.gte=${today}&primary_release_date.lte=${rangeEnd}&sort_by=primary_release_date.asc`;
         }
         
@@ -275,8 +278,7 @@ export const tmdb = {
 
         const detailsData = await Promise.all(detailPromises);
         return detailsData.map((d: any) => {
-            const series = mapTmdbToSeries(d);
-            // Ensure next_episode is populated for grouping logic in App.tsx
+            const series = mapTmdbToSeries({ ...d, media_type: type });
             if (type === 'movie' && !series.next_episode && d.release_date) {
                 series.next_episode = {
                     air_date: d.release_date,
@@ -288,9 +290,8 @@ export const tmdb = {
                     still_path: null
                 };
             }
-            // For TV, if discover gave us a result, it should have a next_episode_to_air
             return series;
-        }).filter(s => !!s.next_episode); // Only keep items with a clear air date
+        }).filter(s => !!s.next_episode);
     } catch (error) {
         console.error("Error fetching calendar data:", error);
         return [];
@@ -303,7 +304,9 @@ export const tmdb = {
         const response = await fetch(`${BASE_URL}/${endpoint}?api_key=${API_KEY}&${params}`);
         const data = await response.json();
         if (!data.results) return [];
-        return data.results.map(mapTmdbToSeries);
+        // Extract type from endpoint (e.g., discover/movie -> movie)
+        const type = endpoint.includes('movie') ? 'movie' : 'tv';
+        return data.results.map((item: any) => mapTmdbToSeries({ ...item, media_type: item.media_type || type }));
     } catch (e) {
         console.error("Discovery error:", e);
         return [];
@@ -317,8 +320,9 @@ export const tmdb = {
 
       const enrichedItems = await Promise.all(itemsToEnrich.map(async (item) => {
           try {
-              const mediaType = item.episodes_total > 0 || item.seasons ? 'tv' : 'movie'; 
-              const idRes = await fetch(`${BASE_URL}/${mediaType}/${item.id}/external_ids?api_key=${API_KEY}`);
+              const rawId = item.id.includes('_') ? item.id.split('_')[1] : item.id;
+              const mediaType = item.media_type || (item.episodes_total > 0 ? 'tv' : 'movie'); 
+              const idRes = await fetch(`${BASE_URL}/${mediaType}/${rawId}/external_ids?api_key=${API_KEY}`);
               const ids = await idRes.json();
               
               if (ids.imdb_id) {

@@ -61,11 +61,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
 
   useEffect(() => {
     setIsPlayingTrailer(false);
-    setEnrichedData({}); // Reset enrichment on series change
+    setEnrichedData({}); 
 
     const fetchOmdbEnrichment = async () => {
         if (series.imdb_id) {
-            // Only fetch if data is missing from the prop
             if (!series.awards || !series.director || !series.metascore) {
                 const data = await omdb.getDetails(series.imdb_id);
                 if (data) {
@@ -77,12 +76,15 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
 
     fetchOmdbEnrichment();
 
-    // Fetch Community Reviews from Firestore
+    // Fetch Community Reviews from Firestore - Standardized path ensures all users see them
     const reviewsRef = collection(db, 'series', series.id, 'reviews');
     const q = query(reviewsRef, orderBy('created_at', 'desc'));
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const reviews = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
         setCommunityReviews(reviews);
+    }, (error) => {
+        console.error("Firestore reviews subscription error:", error);
     });
 
     return () => {
@@ -90,7 +92,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
     };
   }, [series.id, series.imdb_id]);
 
-  // Helper to get merged data (prefer prop, fallback to local fetch)
   const getField = <K extends keyof Series>(key: K): Series[K] | undefined => {
       return series[key] || (enrichedData[key] as Series[K]);
   };
@@ -153,13 +154,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
       const updates: any = {};
 
       if (userVote === type) {
-          // Remove existing vote
           updates[`votedBy.${user.id}`] = null;
           updates[type === 'like' ? 'likes' : 'dislikes'] = increment(-1);
       } else {
-          // Add or change vote
           if (userVote) {
-              // Switch vote
               updates[userVote === 'like' ? 'likes' : 'dislikes'] = increment(-1);
           }
           updates[`votedBy.${user.id}`] = type;
@@ -180,14 +178,11 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
   const imdbRating = getField('imdb_rating');
   const imdbVotes = getField('imdb_votes');
 
-  // Combine TMDb and Community Reviews
   const allReviews = [...communityReviews, ...(series.reviews || [])];
 
   return (
     <div className="bg-navy-900 min-h-screen pb-12">
-      {/* HERO SECTION */}
       <div className="relative w-full h-[400px] md:h-[500px]">
-        {/* Banner Image */}
         <div className="absolute inset-0">
             <img 
                 src={series.banner_url} 
@@ -200,12 +195,10 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
 
         <div className="container mx-auto px-4 h-full relative z-10 flex flex-col justify-end pb-8">
             <div className="flex flex-col md:flex-row gap-8 items-end">
-                {/* Poster (Overlapping) */}
                 <div className="hidden md:block w-48 lg:w-64 flex-shrink-0 -mb-16 rounded-lg overflow-hidden shadow-2xl border-4 border-navy-800">
                     <img src={series.poster_url} alt={series.title_tr} className="w-full h-auto" />
                 </div>
 
-                {/* Header Info */}
                 <div className="flex-1 space-y-4 mb-4">
                     <div className="flex flex-wrap items-center gap-3 mb-2">
                         <div className="flex items-center gap-1 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
@@ -246,7 +239,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                         <span>{series.genres?.join(', ') || 'Drama'}</span>
                     </div>
 
-                    {/* Social Buttons */}
                     <div className="flex gap-2 pt-2">
                         {series.social_links?.facebook && (
                             <a href={series.social_links.facebook} target="_blank" rel="noreferrer" className="w-8 h-8 bg-[#3b5998] rounded flex items-center justify-center text-white hover:opacity-90">
@@ -269,9 +261,8 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
         </div>
       </div>
 
-      {/* TABS NAVIGATION */}
       <div className="border-b border-white/10 bg-navy-900 sticky top-16 z-30 shadow-lg">
-          <div className="container mx-auto px-4 pl-0 md:pl-[300px]"> {/* Offset for poster width */}
+          <div className="container mx-auto px-4 pl-0 md:pl-[300px]"> 
               <nav className="flex overflow-x-auto no-scrollbar gap-8 text-sm font-bold">
                   {(['OVERVIEW', 'EPISODES', 'CAST', 'REVIEWS'] as const).map((tab) => (
                       <button 
@@ -286,17 +277,13 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
           </div>
       </div>
 
-      {/* MAIN CONTENT GRID */}
       <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col lg:flex-row gap-8">
               
-              {/* LEFT COLUMN (Content) */}
               <div className="flex-1 space-y-10 min-h-[500px]">
                   
-                  {/* OVERVIEW TAB CONTENT */}
                   {activeTab === 'OVERVIEW' && (
                     <div className="animate-in fade-in duration-300 space-y-10">
-                        {/* Synopsis */}
                         <section>
                             <div className="flex items-center gap-2 mb-3">
                                 <div className="w-1 h-6 bg-red-600 rounded-full" />
@@ -307,7 +294,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                             </p>
                         </section>
 
-                         {/* OMDb Awards Section */}
                          {awards && (
                              <section className="bg-navy-800/50 p-6 rounded-xl border border-white/10 flex items-start gap-5 shadow-inner">
                                 <Trophy className="w-10 h-10 text-[#F5C518] flex-shrink-0 drop-shadow-lg" />
@@ -318,7 +304,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                              </section>
                          )}
 
-                        {/* Latest Episodes Snippet */}
                         {series.latest_episode && (
                             <section>
                                 <div className="flex items-center gap-2 mb-4">
@@ -352,7 +337,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                             </section>
                         )}
 
-                        {/* Trailer */}
                         {series.trailer_url && (
                             <section>
                                 <div className="flex items-center gap-2 mb-4">
@@ -400,7 +384,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                             </section>
                         )}
                         
-                        {/* Featured Cast Snippet */}
                          {cast.length > 0 && (
                             <section>
                                 <div className="flex justify-between items-center mb-4">
@@ -426,7 +409,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                     </div>
                   )}
 
-                  {/* EPISODES TAB CONTENT */}
                   {activeTab === 'EPISODES' && (
                       <div className="animate-in fade-in duration-300 space-y-6">
                            <div className="flex items-center gap-2 mb-4">
@@ -437,7 +419,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                                <div className="space-y-4">
                                    {series.seasons.map((season) => (
                                        <div key={season.id} className="bg-navy-800 rounded-xl overflow-hidden border border-white/5 transition-colors">
-                                            {/* Season Header */}
                                             <div 
                                                 onClick={() => toggleSeason(season.season_number)}
                                                 className="flex flex-col sm:flex-row cursor-pointer hover:bg-navy-750"
@@ -469,7 +450,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                                                 </div>
                                             </div>
 
-                                            {/* Expanded Episodes List */}
                                             {expandedSeason === season.season_number && (
                                                 <div className="border-t border-white/5 bg-navy-900/50 p-4 animate-in slide-in-from-top-2">
                                                     {loadingEpisodes && !seasonEpisodes[season.season_number] ? (
@@ -521,7 +501,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                       </div>
                   )}
 
-                  {/* CAST TAB CONTENT */}
                   {activeTab === 'CAST' && (
                       <div className="animate-in fade-in duration-300 space-y-6">
                            <div className="flex items-center gap-2 mb-4">
@@ -554,10 +533,8 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                       </div>
                   )}
 
-                  {/* REVIEWS TAB CONTENT */}
                   {activeTab === 'REVIEWS' && (
                       <div className="animate-in fade-in duration-300 space-y-10">
-                          {/* Post Review Form */}
                           <section>
                               <div className="flex items-center gap-2 mb-6">
                                     <div className="w-1 h-6 bg-purple rounded-full shadow-lg shadow-purple/50" />
@@ -615,7 +592,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                               )}
                           </section>
 
-                          {/* Reviews List */}
                           <div className="space-y-6">
                             {allReviews.length > 0 ? (
                                 allReviews.map((review) => {
@@ -697,10 +673,8 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
 
               </div>
 
-              {/* RIGHT COLUMN (Sidebar) */}
               <div className="w-full lg:w-[320px] space-y-8">
                   
-                  {/* Action Buttons */}
                   <div className="grid grid-cols-3 gap-4">
                       <button className="flex flex-col items-center gap-2 group">
                           <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center text-white shadow-lg shadow-red-600/30 group-hover:scale-110 transition-transform">
@@ -724,7 +698,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                       </button>
                   </div>
 
-                  {/* Information Box */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
                        <h3 className="text-navy-900 font-bold border-l-4 border-red-600 pl-2 mb-4">INFORMATION</h3>
                        <div className="space-y-3 text-sm">
@@ -757,7 +730,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                        </div>
                   </div>
 
-                  {/* Where to Watch (Streaming Availability) */}
                   <StreamingAvailability imdbId={series.imdb_id} />
 
               </div>
