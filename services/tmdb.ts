@@ -248,26 +248,27 @@ export const tmdb = {
     if (!IS_ENABLED) return [];
     try {
         const today = new Date().toISOString().split('T')[0];
-        const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        // Fetch a broader window to show truly upcoming content (next 30 days)
+        const rangeEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}&sort_by=popularity.desc`;
+        let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}`;
         
-        // If 'all' is selected, we don't filter by language to catch everything
-        if (language !== 'all') {
-            url += `&with_original_language=${language}`;
+        // Prioritize upcoming release dates by sorting chronologically
+        if (type === 'tv') {
+            url += `&air_date.gte=${today}&air_date.lte=${rangeEnd}&sort_by=popularity.desc`;
+        } else {
+            // For movies, we want future releases
+            url += `&primary_release_date.gte=${today}&primary_release_date.lte=${rangeEnd}&sort_by=primary_release_date.asc`;
         }
         
-        if (type === 'tv') {
-            url += `&air_date.gte=${today}&air_date.lte=${nextWeek}`;
-        } else {
-            url += `&primary_release_date.gte=${today}&primary_release_date.lte=${nextWeek}`;
+        if (language !== 'all') {
+            url += `&with_original_language=${language}`;
         }
 
         const response = await fetch(url);
         const data = await response.json();
-        const results = data.results?.slice(0, 40) || []; // Increased slice to 40 to avoid missing shows
+        const results = data.results?.slice(0, 50) || [];
 
-        // Fetch details to get air dates for calendar grouping
         const detailPromises = results.map((item: any) => 
             fetch(`${BASE_URL}/${type}/${item.id}?api_key=${API_KEY}`).then(res => res.json())
         );
@@ -275,20 +276,21 @@ export const tmdb = {
         const detailsData = await Promise.all(detailPromises);
         return detailsData.map((d: any) => {
             const series = mapTmdbToSeries(d);
-            // If movie, map release date to next_episode air_date for calendar grouping consistency
+            // Ensure next_episode is populated for grouping logic in App.tsx
             if (type === 'movie' && !series.next_episode && d.release_date) {
                 series.next_episode = {
                     air_date: d.release_date,
                     id: 0,
-                    name: 'Release Day',
+                    name: 'Theatrical Release',
                     episode_number: 1,
                     season_number: 1,
                     overview: d.overview,
                     still_path: null
                 };
             }
+            // For TV, if discover gave us a result, it should have a next_episode_to_air
             return series;
-        });
+        }).filter(s => !!s.next_episode); // Only keep items with a clear air date
     } catch (error) {
         console.error("Error fetching calendar data:", error);
         return [];
