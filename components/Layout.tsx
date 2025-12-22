@@ -46,7 +46,15 @@ export const Layout: React.FC<LayoutProps> = ({
     const unsub = settingsService.subscribeToConfig((config) => {
       setSiteConfig(config);
       setLogoError(false); // Reset error state on config change
-      document.title = `${config.siteName}${config.siteNamePart2} - Track Turkish Dramas`;
+      
+      // Update Browser Tab Title with the new slogan
+      document.title = `${config.siteName}${config.siteNamePart2} - Every Story, Tracked.`;
+      
+      // Update Dynamic Favicon
+      const favicon = document.getElementById('dynamic-favicon') as HTMLLinkElement;
+      if (favicon && config.logoUrl) {
+        favicon.href = config.logoUrl;
+      }
     });
 
     const savedHistory = localStorage.getItem('searchHistory');
