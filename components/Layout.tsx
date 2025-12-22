@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart, Clock, Trash2, History, Mail, Phone, MapPin } from 'lucide-react';
 import { ViewState, User, SiteConfig } from '../types';
@@ -406,7 +407,7 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
             </div>
           </div>
-          <div className="border-t border-white/5 pt-8 text-center text-gray-500 text-sm">© 2024 {siteConfig.siteName}{siteConfig.siteNamePart2} Media. All rights reserved.</div>
+          <div className="border-t border-white/5 pt-8 text-center text-gray-500 text-sm">© 2025 {siteConfig.siteName}{siteConfig.siteNamePart2} Media. All rights reserved.</div>
         </div>
       </footer>
     </div>

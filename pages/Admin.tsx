@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Film, Users, Plus, TrendingUp, Image as ImageIcon, Trash2, X, Edit2, Save, Globe, Mail, Phone, MapPin, ShieldCheck, ToggleLeft, ToggleRight, Wifi, PlayCircle, Activity, UserX, CheckSquare, Square, MoreHorizontal, AlertTriangle, Shield
@@ -253,6 +254,25 @@ export const AdminPanel: React.FC = () => {
                             <div>
                                 <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Suffix (Optional)</label>
                                 <input type="text" value={siteConfig.siteNamePart2} onChange={e => setSiteConfig({...siteConfig, siteNamePart2: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Contact Information Section */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2 border-b border-gray-50 pb-3"><Mail className="w-4 h-4 text-purple" /> Contact Information</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Support Email</label>
+                                <input type="email" value={siteConfig.contactEmail} onChange={e => setSiteConfig({...siteConfig, contactEmail: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Phone Number</label>
+                                <input type="text" value={siteConfig.contactPhone} onChange={e => setSiteConfig({...siteConfig, contactPhone: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Address</label>
+                                <textarea rows={1} value={siteConfig.address} onChange={e => setSiteConfig({...siteConfig, address: e.target.value})} className="w-full border border-gray-200 rounded-lg p-2.5 text-sm outline-none resize-none" />
                             </div>
                         </div>
                     </div>
