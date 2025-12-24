@@ -1,7 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-// Added Skull to the list of icons imported from lucide-react
-import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart, Clock, Trash2, History, Mail, Phone, MapPin, Globe, Film, Tv, Flame, Ghost, Smile, Swords, Skull } from 'lucide-react';
+import { 
+  Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, 
+  ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, 
+  Heart, Clock, Trash2, History, Mail, Phone, MapPin, Globe, Film, Tv, 
+  Flame, Ghost, Smile, Swords, Skull, Star, Monitor, Play, Clapperboard
+} from 'lucide-react';
 import { ViewState, User, SiteConfig } from '../types';
 import { settingsService, DEFAULT_CONFIG } from '../services/settingsService';
 
@@ -127,12 +131,12 @@ export const Layout: React.FC<LayoutProps> = ({
   };
 
   const GLOBAL_NATIONS = [
-      { name: 'Turkish Dramas', code: 'tr', flag: '🇹🇷' },
-      { name: 'Korean Wave', code: 'ko', flag: '🇰🇷' },
-      { name: 'Indian (Hindi)', code: 'hi', flag: '🇮🇳' },
-      { name: 'Japanese Live', code: 'ja', flag: '🇯🇵' },
-      { name: 'Chinese Hits', code: 'zh', flag: '🇨🇳' },
-      { name: 'Filipino Stars', code: 'tl', flag: '🇵🇭' },
+      { name: 'Turkish Dizi', country: 'TR', flag: '🇹🇷' },
+      { name: 'K-Drama Wave', country: 'KR', flag: '🇰🇷' },
+      { name: 'Bollywood (India)', country: 'IN', flag: '🇮🇳' },
+      { name: 'Pinoy (Philippines)', country: 'PH', flag: '🇵🇭' },
+      { name: 'C-Drama (China)', country: 'CN', flag: '🇨🇳' },
+      { name: 'J-Drama (Japan)', country: 'JP', flag: '🇯🇵' },
   ];
 
   return (
@@ -165,97 +169,117 @@ export const Layout: React.FC<LayoutProps> = ({
                   </button>
 
                   {isStartMenuOpen && (
-                      <div className="absolute top-full left-0 mt-4 w-[85vw] max-w-[950px] bg-navy-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 grid grid-cols-4 gap-8 animate-in fade-in slide-in-from-top-2 z-50 ring-1 ring-black/50">
+                      <div className="absolute top-full left-0 mt-4 w-[85vw] max-w-[1000px] bg-navy-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 grid grid-cols-4 gap-10 animate-in fade-in slide-in-from-top-2 z-50 ring-1 ring-black/50">
                           {/* Col 1: Discovery */}
-                          <div className="space-y-6 border-r border-white/5 pr-6">
-                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">Global Discovery</h3>
+                          <div className="space-y-6">
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">TV Shows</h3>
                               <ul className="space-y-4">
-                                  <li onClick={() => handleCategoryClick('Trending Now', 'trending/tv/day', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                  <li onClick={() => handleCategoryClick('Trending TV', 'trending/tv/day', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
                                       <Zap className="w-4 h-4 text-yellow-500 group-hover:scale-110 transition-transform" />
-                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Trending Now</span>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Trending TV Shows</span>
                                   </li>
-                                  <li onClick={() => handleCategoryClick('All Time Popular', 'tv/popular', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                  <li onClick={() => handleCategoryClick('Most Popular TV', 'tv/popular', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
                                       <Rocket className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
-                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Most Popular</span>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Most Popular TV Shows</span>
                                   </li>
-                                  <li onClick={() => handleCategoryClick('New on Air', 'tv/on_the_air', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                  <li onClick={() => handleCategoryClick('Newest TV Shows', 'tv/on_the_air', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
                                       <Flame className="w-4 h-4 text-orange-500 group-hover:scale-110 transition-transform" />
-                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">New Releases</span>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Newest TV Shows</span>
                                   </li>
-                                  <li onClick={() => handleCategoryClick('Adult Series', 'discover/tv', 'include_adult=true&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <Skull className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
-                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Adults 18+</span>
+                                  <li onClick={() => handleCategoryClick('Upcoming TV', 'tv/airing_today', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <Calendar className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Upcoming TV Shows</span>
                                   </li>
                               </ul>
                               <div className="h-px bg-white/5 my-4" />
-                              <button onClick={() => handleCategoryClick('Explore All Shows', 'discover/tv', 'sort_by=popularity.desc')} className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black py-3 rounded-xl mt-2 transition-all shadow-lg shadow-red-900/20 text-[10px] tracking-[0.2em] uppercase">
-                                  EXPLORE ALL
+                              <button onClick={() => handleCategoryClick('Explore All Shows', 'discover/tv', 'sort_by=popularity.desc')} className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black py-4 rounded-xl mt-2 transition-all shadow-lg shadow-red-900/20 text-[10px] tracking-[0.2em] uppercase">
+                                  EXPLORE SHOWS
                               </button>
                           </div>
 
-                          {/* Col 2: Nations */}
-                          <div className="space-y-6 border-r border-white/5 pr-6">
-                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">By Nations</h3>
-                              <ul className="space-y-2.5">
+                          {/* Col 2: Global Nations */}
+                          <div className="space-y-6 border-x border-white/5 px-6">
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">Global Hubs</h3>
+                              <ul className="space-y-3">
                                   {GLOBAL_NATIONS.map(nation => (
-                                      <li key={nation.code} onClick={() => handleCategoryClick(nation.name, 'discover/tv', `with_original_language=${nation.code}&sort_by=popularity.desc`)} className="flex items-center justify-between text-gray-400 hover:text-white cursor-pointer text-sm font-medium transition-all hover:translate-x-1 group">
+                                      <li key={nation.country} onClick={() => handleCategoryClick(nation.name, 'discover/tv', `with_origin_country=${nation.country}&sort_by=popularity.desc`)} className="flex items-center justify-between text-gray-400 hover:text-white cursor-pointer text-sm font-bold transition-all hover:translate-x-1 group">
                                           <div className="flex items-center gap-3">
-                                              <span className="text-lg opacity-80 group-hover:opacity-100">{nation.flag}</span>
+                                              <span className="text-lg opacity-80 group-hover:opacity-100 filter grayscale group-hover:grayscale-0 transition-all">{nation.flag}</span>
                                               <span>{nation.name}</span>
                                           </div>
                                           <ChevronDown className="w-3 h-3 -rotate-90 opacity-0 group-hover:opacity-50" />
                                       </li>
                                   ))}
                               </ul>
+                              <div className="h-px bg-white/5 my-4" />
+                              <li onClick={() => handleCategoryClick('Filipino Cinema', 'discover/movie', 'with_origin_country=PH&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm font-bold group">
+                                  <Clapperboard className="w-4 h-4 text-purple" />
+                                  <span>Pinoy Movies</span>
+                              </li>
                           </div>
 
-                          {/* Col 3: Anime & Genres */}
+                          {/* Col 3: Specials & Adult */}
                           <div className="space-y-6">
-                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">Anime & Specials</h3>
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">Specials</h3>
                               <ul className="space-y-4">
-                                  <li onClick={() => handleCategoryClick('Anime Collection', 'discover/tv', 'with_genres=16&with_original_language=ja&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <div className="w-7 h-7 bg-pink-500/20 rounded flex items-center justify-center group-hover:bg-pink-500/40 transition-colors">
+                                  <li onClick={() => handleCategoryClick('Anime Collection', 'discover/tv', 'with_genres=16&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <div className="w-8 h-8 bg-pink-500/10 rounded-lg flex items-center justify-center group-hover:bg-pink-500/30 transition-colors border border-pink-500/20">
                                           <Smile className="w-4 h-4 text-pink-500" />
                                       </div>
-                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Anime Library</span>
-                                  </li>
-                                  <li onClick={() => handleGenreClick('Action & Epic', 10759)} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <div className="w-7 h-7 bg-blue-500/20 rounded flex items-center justify-center group-hover:bg-blue-500/40 transition-colors">
-                                          <Swords className="w-4 h-4 text-blue-500" />
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold">Anime Library</span>
+                                          <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Global Animation</span>
                                       </div>
-                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Action & Epic</span>
                                   </li>
-                                  <li onClick={() => handleGenreClick('Supernatural', 10765)} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <div className="w-7 h-7 bg-purple/20 rounded flex items-center justify-center group-hover:bg-purple/40 transition-colors">
-                                          <Ghost className="w-4 h-4 text-purple" />
+                                  <li onClick={() => handleCategoryClick('Adult Series', 'discover/tv', 'include_adult=true&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <div className="w-8 h-8 bg-red-600/10 rounded-lg flex items-center justify-center group-hover:bg-red-600/30 transition-colors border border-red-600/20">
+                                          <Skull className="w-4 h-4 text-red-600" />
                                       </div>
-                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Supernatural</span>
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold">Adult Content</span>
+                                          <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Restricted 18+</span>
+                                      </div>
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Top Bollywood', 'discover/movie', 'with_original_language=hi&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <div className="w-8 h-8 bg-yellow-500/10 rounded-lg flex items-center justify-center group-hover:bg-yellow-500/30 transition-colors border border-yellow-500/20">
+                                          <Star className="w-4 h-4 text-yellow-500" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold">Bollywood Hits</span>
+                                          <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Hindi Cinema</span>
+                                      </div>
                                   </li>
                               </ul>
                           </div>
 
-                          {/* Col 4: Quick Links */}
-                          <div className="border-l border-white/5 pl-6">
-                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">Quick Access</h3>
-                              <ul className="space-y-3">
-                                  {[
-                                      {label: 'Curated For You', icon: <Heart className="w-3.5 h-3.5 text-pink-500" />, action: () => handleCategoryClick('Curated For You', 'tv/top_rated', '')},
-                                      {label: 'Cancellation Buzz', icon: <AlertCircle className="w-3.5 h-3.5 text-orange-500" />, action: () => handleCategoryClick('Cancellation Buzz', 'discover/tv', 'vote_average.lte=6&sort_by=popularity.desc')},
-                                  ].map((link, i) => (
-                                      <li key={i} onClick={link.action} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group font-medium">
-                                          <span className="opacity-70 group-hover:opacity-100 transition-opacity">{link.icon}</span>
-                                          <span>{link.label}</span>
-                                      </li>
-                                  ))}
+                          {/* Col 4: Links */}
+                          <div className="border-l border-white/5 pl-10">
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">Quick Links</h3>
+                              <ul className="space-y-4">
+                                  <li onClick={() => handleCategoryClick('Curated For You', 'tv/top_rated', '')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group font-bold">
+                                      <Heart className="w-4 h-4 text-pink-500" />
+                                      <span>Curated For You</span>
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Cancellation Buzz', 'discover/tv', 'vote_average.lte=6&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group font-bold">
+                                      <AlertCircle className="w-4 h-4 text-orange-500" />
+                                      <span>Cancellation Buzz</span>
+                                  </li>
                               </ul>
-                              <div className="flex gap-2 mt-auto pt-8">
-                                  {['twitter', 'instagram', 'facebook', 'youtube'].map(social => (
-                                    siteConfig.socialLinks[social as keyof typeof siteConfig.socialLinks] && (
-                                      <a key={social} href={siteConfig.socialLinks[social as keyof typeof siteConfig.socialLinks]} target="_blank" className="w-8 h-8 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center cursor-pointer transition-colors text-[10px] font-black text-gray-400 hover:text-white border border-white/5 uppercase">
-                                          {social.charAt(0)}
-                                      </a>
-                                    )
-                                  ))}
+                              
+                              <div className="mt-12 space-y-4">
+                                  <div className="flex items-center gap-4">
+                                      <div className="w-1 h-6 bg-purple rounded-full" />
+                                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Connect</span>
+                                  </div>
+                                  <div className="flex gap-3">
+                                      {['twitter', 'instagram', 'facebook', 'youtube'].map(social => (
+                                        siteConfig.socialLinks[social as keyof typeof siteConfig.socialLinks] && (
+                                          <a key={social} href={siteConfig.socialLinks[social as keyof typeof siteConfig.socialLinks]} target="_blank" className="w-10 h-10 bg-white/5 hover:bg-white/10 rounded-xl flex items-center justify-center cursor-pointer transition-all text-xs font-black text-gray-400 hover:text-white border border-white/5 hover:border-purple/30 group">
+                                              <div className="group-hover:scale-110 transition-transform">{social.charAt(0).toUpperCase()}</div>
+                                          </a>
+                                        )
+                                      ))}
+                                  </div>
                               </div>
                            </div>
                       </div>
