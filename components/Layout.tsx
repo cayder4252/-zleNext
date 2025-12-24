@@ -43,7 +43,6 @@ export const Layout: React.FC<LayoutProps> = ({
 
   const navItems: { label: string; view: ViewState }[] = [
     { label: 'Home', view: 'HOME' },
-    { label: 'Ratings', view: 'RATINGS' },
     { label: 'Calendar', view: 'CALENDAR' },
   ];
 

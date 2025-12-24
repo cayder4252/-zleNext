@@ -242,7 +242,6 @@ function App() {
       setLoadingSeries(true);
       setIsBrowsing(false);
       try {
-        // Multi-page fetch for Search: 3 TMDb pages per logical page (approx 60 items)
         const p1 = (currentPage - 1) * 3 + 1;
         const p2 = p1 + 1;
         const p3 = p1 + 2;
@@ -319,7 +318,6 @@ function App() {
       setCurrentPage(pageNum);
       window.scrollTo(0, 0);
       try {
-          // Multi-page fetch for Browse: 3 TMDb pages per logical page (approx 60 items)
           const p1 = (pageNum - 1) * 3 + 1;
           const p2 = p1 + 1;
           const p3 = p1 + 2;
@@ -610,33 +608,43 @@ function App() {
         const displaySeries = detailData?.series || seriesList.find(s => s.id === selectedSeriesId);
         if (!displaySeries) return <div className="p-24 text-center text-white"><AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" /> Series not found</div>;
         return <SeriesDetail series={displaySeries} cast={detailData?.cast || []} onAddToWatchlist={handleAddToWatchlist} isInWatchlist={watchlist.includes(displaySeries.id)} user={displayUser} />;
-      case 'RATINGS':
-        return (<div className="container mx-auto px-4 py-12"><h2 className="text-3xl font-black mb-10 text-white flex items-center gap-3 uppercase tracking-tighter"><TrendingUp className="text-purple w-8 h-8" /> Market Analytics</h2><RatingsTable ratings={MOCK_RATINGS} series={seriesList} /></div>);
       case 'CALENDAR':
         return (
             <div className="container mx-auto px-4 py-12 max-w-7xl">
-                <div className="bg-navy-800/40 backdrop-blur-xl p-8 md:p-12 rounded-[2.5rem] border border-white/5 mb-16 flex flex-col md:flex-row md:items-center justify-between gap-10 shadow-2xl relative overflow-hidden group">
-                    <div className="absolute -right-20 -top-20 w-64 h-64 bg-purple/10 rounded-full blur-[80px]" />
-                    <div className="relative z-10">
-                        <span className="bg-purple/20 text-purple text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-[0.3em] border border-purple/30">Release Radar</span>
-                        <h2 className="text-4xl md:text-6xl font-black text-white flex items-center gap-4 tracking-tighter uppercase"><Calendar className="w-12 h-12 text-purple" /> Broadcast Pulse</h2>
+                {/* Side-by-Side Header Dashboard */}
+                <div className="flex flex-col lg:flex-row gap-8 mb-16">
+                    {/* Compact Broadcast Pulse Header (Left) */}
+                    <div className="lg:w-1/3 bg-navy-800/40 backdrop-blur-xl p-8 rounded-[2rem] border border-white/5 flex flex-col justify-between shadow-2xl relative overflow-hidden group">
+                        <div className="absolute -right-20 -top-20 w-48 h-48 bg-purple/5 rounded-full blur-[60px]" />
+                        <div className="relative z-10 space-y-6">
+                            <span className="inline-block bg-purple/20 text-purple text-[9px] font-black px-4 py-1 rounded-full uppercase tracking-[0.3em] border border-purple/30">Release Radar</span>
+                            <h2 className="text-3xl font-black text-white flex items-center gap-3 tracking-tighter uppercase leading-none">
+                                <Calendar className="w-10 h-10 text-purple" /> Broadcast<br/>Pulse
+                            </h2>
+                            <div className="space-y-4 pt-4">
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Origin</label>
+                                    <select value={calendarLanguage} onChange={(e) => setCalendarLanguage(e.target.value)} className="w-full bg-navy-900/80 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple transition-all text-xs font-black uppercase tracking-widest">
+                                        {LANGUAGES.map(lang => (<option key={lang.code} value={lang.code} className="bg-navy-900">{lang.flag} {lang.name}</option>))}
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Format</label>
+                                    <select value={calendarType} onChange={(e) => setCalendarType(e.target.value as any)} className="w-full bg-navy-900/80 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple transition-all text-xs font-black uppercase tracking-widest">
+                                        <option value="tv" className="bg-navy-900">Broadcast Series</option>
+                                        <option value="movie" className="bg-navy-900">Cinematic Film</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-8 relative z-10">
-                        <div className="flex flex-col gap-3">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">Origin</label>
-                            <select value={calendarLanguage} onChange={(e) => setCalendarLanguage(e.target.value)} className="w-full min-w-[180px] bg-navy-900/80 border border-white/10 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-purple transition-all text-sm font-black uppercase tracking-widest pr-12">
-                                {LANGUAGES.map(lang => (<option key={lang.code} value={lang.code} className="bg-navy-900">{lang.flag} {lang.name}</option>))}
-                            </select>
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">Format</label>
-                            <select value={calendarType} onChange={(e) => setCalendarType(e.target.value as any)} className="w-full min-w-[200px] bg-navy-900/80 border border-white/10 text-white px-6 py-4 rounded-2xl focus:outline-none focus:border-purple transition-all text-sm font-black uppercase tracking-widest pr-12">
-                                <option value="tv" className="bg-navy-900">Broadcast Series</option>
-                                <option value="movie" className="bg-navy-900">Cinematic Film</option>
-                            </select>
-                        </div>
+
+                    {/* Integrated Ratings Table (Right) */}
+                    <div className="lg:w-2/3">
+                        <RatingsTable ratings={MOCK_RATINGS} series={seriesList} />
                     </div>
                 </div>
+
                 {loadingCalendar ? (<div className="flex flex-col items-center justify-center py-48 gap-8 animate-in fade-in"><Loader2 className="w-20 h-20 animate-spin text-purple" /><p className="text-white font-black text-sm uppercase animate-pulse">Establishing Node Link</p></div>) 
                 : sortedDates.length === 0 ? (<div className="bg-navy-800/30 rounded-[4rem] p-40 text-center border border-white/5 border-dashed"><AlertCircle className="w-12 h-12 text-gray-700 mx-auto mb-4" /><p className="text-white font-black text-2xl uppercase tracking-tighter">No Upcoming Signals</p></div>) 
                 : (<div className="space-y-24 animate-in slide-in-from-bottom-10 duration-1000">{sortedDates.map((dateStr) => {
