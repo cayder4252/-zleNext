@@ -242,9 +242,20 @@ function App() {
       setLoadingSeries(true);
       setIsBrowsing(false);
       try {
-        const { results, total_pages } = await tmdb.search(trimmedQuery, currentPage);
-        setSeriesList(results);
-        setTotalPages(total_pages);
+        // Multi-page fetch for Search: 3 TMDb pages per logical page (approx 60 items)
+        const p1 = (currentPage - 1) * 3 + 1;
+        const p2 = p1 + 1;
+        const p3 = p1 + 2;
+
+        const [r1, r2, r3] = await Promise.all([
+            tmdb.search(trimmedQuery, p1),
+            tmdb.search(trimmedQuery, p2),
+            tmdb.search(trimmedQuery, p3)
+        ]);
+        
+        const combined = [...r1.results, ...r2.results, ...r3.results];
+        setSeriesList(combined);
+        setTotalPages(Math.ceil(r1.total_pages / 3));
       } catch (e) {
         console.error("Search error", e);
       } finally {
@@ -308,13 +319,19 @@ function App() {
       setCurrentPage(pageNum);
       window.scrollTo(0, 0);
       try {
-          // Fetch 3 pages to approximate "50 content per page" (TMDb is 20 per page)
-          // For simplicity and stability, we'll fetch two TMDb pages (40 items) per logical page
-          const firstBatch = await tmdb.getDiscoveryContent(endpoint, params, (pageNum * 2) - 1);
-          const secondBatch = await tmdb.getDiscoveryContent(endpoint, params, pageNum * 2);
+          // Multi-page fetch for Browse: 3 TMDb pages per logical page (approx 60 items)
+          const p1 = (pageNum - 1) * 3 + 1;
+          const p2 = p1 + 1;
+          const p3 = p1 + 2;
+
+          const [batch1, batch2, batch3] = await Promise.all([
+              tmdb.getDiscoveryContent(endpoint, params, p1),
+              tmdb.getDiscoveryContent(endpoint, params, p2),
+              tmdb.getDiscoveryContent(endpoint, params, p3)
+          ]);
           
-          setSeriesList([...firstBatch.results, ...secondBatch.results]);
-          setTotalPages(Math.ceil(firstBatch.total_pages / 2));
+          setSeriesList([...batch1.results, ...batch2.results, ...batch3.results]);
+          setTotalPages(Math.ceil(batch1.total_pages / 3));
       } catch (e) {} finally { setLoadingSeries(false); }
   };
 
@@ -333,6 +350,7 @@ function App() {
 
   const handlePageChange = (newPage: number) => {
       if (newPage < 1 || newPage > totalPages) return;
+      window.scrollTo(0, 0);
       if (searchQuery) {
           setCurrentPage(newPage);
       } else if (isBrowsing && browseTitle && browseEndpoint && browseParams) {
