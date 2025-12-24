@@ -26,7 +26,6 @@ import {
     Save,
     Lock,
     User as UserIcon,
-    Link as LinkIcon,
     CheckCircle,
     AlertCircle,
     Heart,
@@ -51,7 +50,10 @@ import {
     Camera,
     Trophy,
     History,
-    Loader2
+    Loader2,
+    Radio,
+    Rss,
+    Cpu
 } from 'lucide-react';
 
 const SERIES_CACHE_KEY = 'izlenext_series_cache';
@@ -97,6 +99,7 @@ function App() {
   const [loadingCalendar, setLoadingCalendar] = useState(false);
 
   const [news, setNews] = useState<NewsArticle[]>([]);
+  const [pulseNews, setPulseNews] = useState<any[]>([]);
   const [loadingNews, setLoadingNews] = useState(false);
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
 
@@ -120,6 +123,25 @@ function App() {
         });
     });
     return () => unsubConfig();
+  }, []);
+
+  // Pulse Feed Integration (10s Live Refresh)
+  useEffect(() => {
+    const fetchPulseNews = async () => {
+        try {
+            // Using the requested API Key and query for Dizi/Dramas
+            const res = await fetch(`https://newsdata.io/api/1/news?apikey=pub_e7764909bff04a3f9bf72d384e687756&q=dizi&language=tr,en`);
+            const data = await res.json();
+            if (data.results) setPulseNews(data.results);
+        } catch (e) {
+            console.error("Pulse news signal lost", e);
+        }
+    };
+    
+    fetchPulseNews();
+    const interval = setInterval(fetchPulseNews, 10000); // 10s refresh as requested
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -613,27 +635,78 @@ function App() {
             <div className="container mx-auto px-4 py-12 max-w-7xl">
                 {/* Side-by-Side Header Dashboard */}
                 <div className="flex flex-col lg:flex-row gap-8 mb-16">
-                    {/* Compact Broadcast Pulse Header (Left) */}
-                    <div className="lg:w-1/3 bg-navy-800/40 backdrop-blur-xl p-8 rounded-[2rem] border border-white/5 flex flex-col justify-between shadow-2xl relative overflow-hidden group">
-                        <div className="absolute -right-20 -top-20 w-48 h-48 bg-purple/5 rounded-full blur-[60px]" />
-                        <div className="relative z-10 space-y-6">
-                            <span className="inline-block bg-purple/20 text-purple text-[9px] font-black px-4 py-1 rounded-full uppercase tracking-[0.3em] border border-purple/30">Release Radar</span>
-                            <h2 className="text-3xl font-black text-white flex items-center gap-3 tracking-tighter uppercase leading-none">
-                                <Calendar className="w-10 h-10 text-purple" /> Broadcast<br/>Pulse
-                            </h2>
-                            <div className="space-y-4 pt-4">
+                    {/* Compact Broadcast Pulse Header & Live High-Density Feed (Left) */}
+                    <div className="lg:w-1/3 bg-navy-800/60 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/10 flex flex-col shadow-2xl relative overflow-hidden group">
+                        <div className="absolute -right-20 -top-20 w-48 h-48 bg-purple/10 rounded-full blur-[80px]" />
+                        <div className="relative z-10 space-y-8 flex-1 flex flex-col">
+                            <div className="flex items-start justify-between">
+                                <div className="space-y-3">
+                                    <span className="inline-block bg-purple/20 text-purple text-[9px] font-black px-4 py-1 rounded-full uppercase tracking-[0.3em] border border-purple/30 shadow-lg shadow-purple/10">Release Radar</span>
+                                    <h2 className="text-3xl font-black text-white flex items-center gap-3 tracking-tighter uppercase leading-none">
+                                        <Calendar className="w-9 h-9 text-purple" /> Broadcast<br/>Pulse
+                                    </h2>
+                                </div>
+                                <div className="w-12 h-12 bg-navy-900/50 rounded-2xl flex items-center justify-center border border-white/5">
+                                    <Radio className="w-6 h-6 text-purple animate-pulse" />
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 gap-4">
                                 <div className="flex flex-col gap-2">
-                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Origin</label>
-                                    <select value={calendarLanguage} onChange={(e) => setCalendarLanguage(e.target.value)} className="w-full bg-navy-900/80 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple transition-all text-xs font-black uppercase tracking-widest">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1">Origin Node</label>
+                                    <select value={calendarLanguage} onChange={(e) => setCalendarLanguage(e.target.value)} className="w-full bg-navy-900 border border-white/10 text-white px-4 py-3 rounded-2xl focus:outline-none focus:border-purple transition-all text-xs font-black uppercase tracking-widest cursor-pointer">
                                         {LANGUAGES.map(lang => (<option key={lang.code} value={lang.code} className="bg-navy-900">{lang.flag} {lang.name}</option>))}
                                     </select>
                                 </div>
                                 <div className="flex flex-col gap-2">
-                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Format</label>
-                                    <select value={calendarType} onChange={(e) => setCalendarType(e.target.value as any)} className="w-full bg-navy-900/80 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-purple transition-all text-xs font-black uppercase tracking-widest">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-[0.4em] ml-1">Format</label>
+                                    <select value={calendarType} onChange={(e) => setCalendarType(e.target.value as any)} className="w-full bg-navy-900 border border-white/10 text-white px-4 py-3 rounded-2xl focus:outline-none focus:border-purple transition-all text-xs font-black uppercase tracking-widest cursor-pointer">
                                         <option value="tv" className="bg-navy-900">Broadcast Series</option>
                                         <option value="movie" className="bg-navy-900">Cinematic Film</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            {/* Live Feed Section - Optimized for 10 Simultaneous Items */}
+                            <div className="flex-1 mt-6 border-t border-white/5 pt-8 overflow-hidden">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.5em] flex items-center gap-2"><Rss className="w-3 h-3 text-purple" /> Live Signals</h4>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]" />
+                                        <span className="text-[8px] font-black text-red-500 uppercase">10S Cycle</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {pulseNews.length > 0 ? (
+                                        pulseNews.slice(0, 10).map((article, idx) => (
+                                            <a 
+                                                key={idx} 
+                                                href={article.link} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="bg-navy-900/50 border border-white/5 p-3 rounded-xl flex items-center gap-3 group/feed hover:border-purple/30 transition-all animate-in slide-in-from-right-2 duration-300"
+                                                style={{ animationDelay: `${idx * 50}ms` }}
+                                            >
+                                                <div className="w-10 h-10 bg-navy-800 rounded-lg flex items-center justify-center shrink-0 border border-white/10 group-hover/feed:border-purple/50 transition-colors">
+                                                    <Cpu className="w-4 h-4 text-gray-600 group-hover/feed:text-purple transition-colors" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="text-[8px] font-black text-purple uppercase mb-0.5 truncate">{article.source_id}</div>
+                                                    <div className="text-[11px] font-bold text-gray-200 line-clamp-1 group-hover/feed:text-white transition-colors">
+                                                        {article.title}
+                                                    </div>
+                                                    <div className="text-[8px] font-black text-gray-600 uppercase tracking-tighter flex items-center gap-1.5 mt-1">
+                                                        <Clock className="w-2 h-2" /> {new Date(article.pubDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        ))
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-navy-900/30 rounded-2xl border border-dashed border-white/10">
+                                            <Loader2 className="w-8 h-8 animate-spin text-purple opacity-20" />
+                                            <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Scanning Frequencies...</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -646,11 +719,15 @@ function App() {
                 </div>
 
                 {loadingCalendar ? (<div className="flex flex-col items-center justify-center py-48 gap-8 animate-in fade-in"><Loader2 className="w-20 h-20 animate-spin text-purple" /><p className="text-white font-black text-sm uppercase animate-pulse">Establishing Node Link</p></div>) 
-                : sortedDates.length === 0 ? (<div className="bg-navy-800/30 rounded-[4rem] p-40 text-center border border-white/5 border-dashed"><AlertCircle className="w-12 h-12 text-gray-700 mx-auto mb-4" /><p className="text-white font-black text-2xl uppercase tracking-tighter">No Upcoming Signals</p></div>) 
+                : sortedDates.length === 0 ? (<div className="bg-navy-800/30 rounded-[4rem] p-40 text-center border border-white/5 border-dashed flex flex-col items-center justify-center animate-in fade-in duration-700">
+                    <AlertCircle className="w-16 h-16 text-gray-700 mb-6" />
+                    <p className="text-white font-black text-2xl uppercase tracking-tighter">No Upcoming Signals</p>
+                    <p className="text-gray-500 text-xs font-bold mt-2 uppercase tracking-widest">Try adjusting filters or checking back later.</p>
+                </div>) 
                 : (<div className="space-y-24 animate-in slide-in-from-bottom-10 duration-1000">{sortedDates.map((dateStr) => {
                     const showsForDate = calendarGrouped[dateStr] || [];
                     const formattedDate = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                    return (<div key={dateStr} className="space-y-10"><div className="flex items-center gap-8 px-6"><div className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter">{formattedDate}</div><div className="h-[2px] bg-gradient-to-r from-purple/40 to-transparent flex-1"></div><div className="text-[11px] text-gray-500 font-black uppercase tracking-[0.5em]">{showsForDate.length} PREMIERES</div></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-12 px-2">{showsForDate.map(show => (<div key={show.id} onClick={() => handleSeriesClick(show.id)} className="group relative aspect-[2/3] rounded-[2.5rem] overflow-hidden bg-navy-800 border border-white/5 cursor-pointer hover:border-purple/50 transition-all duration-700 hover:-translate-y-3"><img src={show.poster_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 opacity-75 group-hover:opacity-100" alt={show.title_tr} /><div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/10 to-transparent opacity-95" /><div className="absolute bottom-0 left-0 w-full p-8 z-20"><div className="space-y-3 transform translate-y-6 group-hover:translate-y-0 transition-transform duration-700"><h3 className="text-2xl font-black text-white leading-none line-clamp-2 uppercase tracking-tighter">{show.title_tr}</h3><p className="text-[11px] text-gray-400 font-black uppercase truncate opacity-60">{show.network} • Premiere</p></div></div></div>))}</div></div>);
+                    return (<div key={dateStr} className="space-y-10"><div className="flex items-center gap-8 px-6"><div className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter">{formattedDate}</div><div className="h-[2px] bg-gradient-to-r from-purple/40 to-transparent flex-1"></div><div className="text-[11px] text-gray-500 font-black uppercase tracking-[0.5em]">{showsForDate.length} PREMIERES</div></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-12 px-2">{showsForDate.map(show => (<div key={show.id} onClick={() => handleSeriesClick(show.id)} className="group relative aspect-[2/3] rounded-[2.5rem] overflow-hidden bg-navy-800 border border-white/5 cursor-pointer hover:border-purple/50 transition-all duration-700 hover:-translate-y-3 shadow-xl"><img src={show.poster_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 opacity-75 group-hover:opacity-100" alt={show.title_tr} /><div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/10 to-transparent opacity-95" /><div className="absolute bottom-0 left-0 w-full p-8 z-20"><div className="space-y-3 transform translate-y-6 group-hover:translate-y-0 transition-transform duration-700"><h3 className="text-2xl font-black text-white leading-none line-clamp-2 uppercase tracking-tighter">{show.title_tr}</h3><p className="text-[11px] text-gray-400 font-black uppercase truncate opacity-60">{show.network} • Premiere</p></div></div></div>))}</div></div>);
                 })}</div>)}
             </div>
         );
