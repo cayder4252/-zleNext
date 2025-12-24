@@ -139,6 +139,21 @@ export const Layout: React.FC<LayoutProps> = ({
       { name: 'J-Drama (Japan)', country: 'JP', flag: '🇯🇵' },
   ];
 
+  const GENRES = [
+    { name: 'Action & Adventure', id: 10759 },
+    { name: 'Animation', id: 16 },
+    { name: 'Comedy', id: 35 },
+    { name: 'Crime', id: 80 },
+    { name: 'Drama', id: 18 },
+    { name: 'Family', id: 10751 },
+    { name: 'Mystery', id: 9648 },
+    { name: 'Reality', id: 10764 },
+    { name: 'Sci-Fi & Fantasy', id: 10765 },
+    { name: 'Soap', id: 10766 },
+    { name: 'War & Politics', id: 10767 },
+    { name: 'Western', id: 37 },
+  ];
+
   return (
     <div className="min-h-screen bg-navy-900 flex flex-col font-sans">
       <header className="sticky top-0 z-50 bg-navy-900/90 backdrop-blur-md border-b border-white/10 shadow-lg">
@@ -169,8 +184,8 @@ export const Layout: React.FC<LayoutProps> = ({
                   </button>
 
                   {isStartMenuOpen && (
-                      <div className="absolute top-full left-0 mt-4 w-[85vw] max-w-[1000px] bg-navy-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 grid grid-cols-4 gap-10 animate-in fade-in slide-in-from-top-2 z-50 ring-1 ring-black/50">
-                          {/* Col 1: Discovery */}
+                      <div className="absolute top-full left-0 mt-4 w-[95vw] max-w-[1100px] bg-navy-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 grid grid-cols-4 gap-10 animate-in fade-in slide-in-from-top-2 z-50 ring-1 ring-black/50">
+                          {/* Col 1: TV SHOWS */}
                           <div className="space-y-6">
                               <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">TV Shows</h3>
                               <ul className="space-y-4">
@@ -197,8 +212,24 @@ export const Layout: React.FC<LayoutProps> = ({
                               </button>
                           </div>
 
-                          {/* Col 2: Global Nations */}
+                          {/* Col 2: TOP GENRES */}
                           <div className="space-y-6 border-x border-white/5 px-6">
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">Top Genres</h3>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                                  {GENRES.map(genre => (
+                                      <button 
+                                          key={genre.id} 
+                                          onClick={() => handleGenreClick(genre.name, genre.id)}
+                                          className="text-left text-gray-400 hover:text-white transition-all text-sm font-bold hover:translate-x-1 truncate"
+                                      >
+                                          {genre.name}
+                                      </button>
+                                  ))}
+                              </div>
+                          </div>
+
+                          {/* Col 3: GLOBAL HUBS */}
+                          <div className="space-y-6">
                               <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">Global Hubs</h3>
                               <ul className="space-y-3">
                                   {GLOBAL_NATIONS.map(nation => (
@@ -218,41 +249,7 @@ export const Layout: React.FC<LayoutProps> = ({
                               </li>
                           </div>
 
-                          {/* Col 3: Specials & Adult */}
-                          <div className="space-y-6">
-                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">Specials</h3>
-                              <ul className="space-y-4">
-                                  <li onClick={() => handleCategoryClick('Anime Collection', 'discover/tv', 'with_genres=16&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <div className="w-8 h-8 bg-pink-500/10 rounded-lg flex items-center justify-center group-hover:bg-pink-500/30 transition-colors border border-pink-500/20">
-                                          <Smile className="w-4 h-4 text-pink-500" />
-                                      </div>
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold">Anime Library</span>
-                                          <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Global Animation</span>
-                                      </div>
-                                  </li>
-                                  <li onClick={() => handleCategoryClick('Adult Series', 'discover/tv', 'include_adult=true&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <div className="w-8 h-8 bg-red-600/10 rounded-lg flex items-center justify-center group-hover:bg-red-600/30 transition-colors border border-red-600/20">
-                                          <Skull className="w-4 h-4 text-red-600" />
-                                      </div>
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold">Adult Content</span>
-                                          <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Restricted 18+</span>
-                                      </div>
-                                  </li>
-                                  <li onClick={() => handleCategoryClick('Top Bollywood', 'discover/movie', 'with_original_language=hi&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <div className="w-8 h-8 bg-yellow-500/10 rounded-lg flex items-center justify-center group-hover:bg-yellow-500/30 transition-colors border border-yellow-500/20">
-                                          <Star className="w-4 h-4 text-yellow-500" />
-                                      </div>
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold">Bollywood Hits</span>
-                                          <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Hindi Cinema</span>
-                                      </div>
-                                  </li>
-                              </ul>
-                          </div>
-
-                          {/* Col 4: Links */}
+                          {/* Col 4: QUICK ACCESS */}
                           <div className="border-l border-white/5 pl-10">
                               <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-6 inline-block text-[11px] uppercase tracking-[0.2em]">Quick Links</h3>
                               <ul className="space-y-4">
@@ -263,6 +260,14 @@ export const Layout: React.FC<LayoutProps> = ({
                                   <li onClick={() => handleCategoryClick('Cancellation Buzz', 'discover/tv', 'vote_average.lte=6&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group font-bold">
                                       <AlertCircle className="w-4 h-4 text-orange-500" />
                                       <span>Cancellation Buzz</span>
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Adult Series', 'discover/tv', 'include_adult=true&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group font-bold">
+                                      <Skull className="w-4 h-4 text-red-600" />
+                                      <span>Adult Content 18+</span>
+                                  </li>
+                                  <li onClick={() => handleCategoryClick('Anime Collection', 'discover/tv', 'with_genres=16&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group font-bold">
+                                      <Smile className="w-4 h-4 text-pink-500" />
+                                      <span>Anime Library</span>
                                   </li>
                               </ul>
                               

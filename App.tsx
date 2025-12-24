@@ -83,6 +83,14 @@ function App() {
     return cached ? JSON.parse(cached) : MOCK_SERIES;
   });
 
+  // Browse & Pagination States
+  const [browseEndpoint, setBrowseEndpoint] = useState<string | null>(null);
+  const [browseParams, setBrowseParams] = useState<string | null>(null);
+  const [browseTitle, setBrowseTitle] = useState<string | null>(null);
+  const [isBrowsing, setIsBrowsing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   const [calendarData, setCalendarData] = useState<Series[]>([]);
   const [calendarLanguage, setCalendarLanguage] = useState('all');
   const [calendarType, setCalendarType] = useState<'tv' | 'movie'>('tv');
@@ -93,8 +101,6 @@ function App() {
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
 
   const [loadingSeries, setLoadingSeries] = useState(false);
-  const [browseTitle, setBrowseTitle] = useState<string | null>(null);
-  const [isBrowsing, setIsBrowsing] = useState(false);
   const [detailData, setDetailData] = useState<{ series: Series, cast: Actor[] } | null>(null);
 
   const [profileForm, setProfileForm] = useState({ name: '', bio: '', avatar_url: '', newPassword: '' });
@@ -131,7 +137,6 @@ function App() {
     fetchNews();
   }, []);
 
-  // News Ticker Logic: Update every 3 seconds
   useEffect(() => {
     if (news.length === 0) return;
     const interval = setInterval(() => {
@@ -227,6 +232,8 @@ function App() {
         try {
           const trending = await tmdb.getTrendingSeries();
           setSeriesList(trending);
+          setTotalPages(1);
+          setCurrentPage(1);
         } catch (e) {} finally { setLoadingSeries(false); }
         return;
       }
@@ -235,8 +242,9 @@ function App() {
       setLoadingSeries(true);
       setIsBrowsing(false);
       try {
-        const results = await tmdb.search(trimmedQuery);
+        const { results, total_pages } = await tmdb.search(trimmedQuery, currentPage);
         setSeriesList(results);
+        setTotalPages(total_pages);
       } catch (e) {
         console.error("Search error", e);
       } finally {
@@ -247,7 +255,7 @@ function App() {
 
     const timeoutId = setTimeout(performSearch, 500);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [searchQuery, currentPage]);
 
   useEffect(() => {
     if (currentView !== 'CALENDAR') return;
@@ -290,25 +298,46 @@ function App() {
     } catch (error) {}
   };
 
-  const handleBrowse = async (title: string, endpoint: string, params: string) => {
+  const handleBrowse = async (title: string, endpoint: string, params: string, pageNum: number = 1) => {
       setLoadingSeries(true);
       setSearchQuery('');
       setBrowseTitle(title);
+      setBrowseEndpoint(endpoint);
+      setBrowseParams(params);
       setIsBrowsing(true);
+      setCurrentPage(pageNum);
       window.scrollTo(0, 0);
       try {
-          const results = await tmdb.getDiscoveryContent(endpoint, params);
-          setSeriesList(results);
+          // Fetch 3 pages to approximate "50 content per page" (TMDb is 20 per page)
+          // For simplicity and stability, we'll fetch two TMDb pages (40 items) per logical page
+          const firstBatch = await tmdb.getDiscoveryContent(endpoint, params, (pageNum * 2) - 1);
+          const secondBatch = await tmdb.getDiscoveryContent(endpoint, params, pageNum * 2);
+          
+          setSeriesList([...firstBatch.results, ...secondBatch.results]);
+          setTotalPages(Math.ceil(firstBatch.total_pages / 2));
       } catch (e) {} finally { setLoadingSeries(false); }
   };
 
   const handleClearBrowse = async () => {
       setIsBrowsing(false);
       setBrowseTitle(null);
+      setBrowseEndpoint(null);
+      setBrowseParams(null);
       setLoadingSeries(true);
+      setCurrentPage(1);
+      setTotalPages(1);
       const homeData = await tmdb.getTrendingSeries();
       setSeriesList(homeData);
       setLoadingSeries(false);
+  };
+
+  const handlePageChange = (newPage: number) => {
+      if (newPage < 1 || newPage > totalPages) return;
+      if (searchQuery) {
+          setCurrentPage(newPage);
+      } else if (isBrowsing && browseTitle && browseEndpoint && browseParams) {
+          handleBrowse(browseTitle, browseEndpoint, browseParams, newPage);
+      }
   };
 
   const handleAddToWatchlist = async (id: string) => {
@@ -495,7 +524,7 @@ function App() {
                         <div className="w-2 h-10 bg-purple rounded-full shadow-lg"></div>
                         <h2 className="text-4xl font-black text-white tracking-tighter uppercase">{searchQuery ? `Searching for "${searchQuery}"` : isBrowsing ? browseTitle : 'Global Charts'}</h2>
                     </div>
-                    {isBrowsing && (<button onClick={handleClearBrowse} className="text-purple bg-purple/10 px-6 py-2 rounded-full hover:bg-purple/20 text-xs font-black uppercase tracking-widest transition-all border border-purple/20"><X className="w-3 h-3 mr-2" /> Clear Filters</button>)}
+                    {isBrowsing && (<button onClick={handleClearBrowse} className="text-purple bg-purple/10 px-6 py-2 rounded-full hover:bg-purple/20 text-xs font-black uppercase tracking-widest transition-all border border-purple/20 flex items-center gap-2"><X className="w-3 h-3" /> Clear Filters</button>)}
                 </div>
                 {isSearching || (loadingSeries && seriesList.length === 0) ? (
                    <div className="text-center py-24 text-gray-500 flex flex-col items-center gap-6">
@@ -503,8 +532,56 @@ function App() {
                        <span className="font-bold tracking-widest text-xs uppercase">{isSearching ? 'Querying Global Database...' : 'Initializing Stream...'}</span>
                    </div>
                 ) : (
-                     seriesList.length > 0 ? (<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-10">{seriesList.map((series) => (<DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />))}</div>) 
-                     : (<div className="text-center py-32 text-gray-600 border border-white/5 rounded-[2.5rem] bg-navy-800/30 flex flex-col items-center gap-4"><Search className="w-16 h-16 opacity-10" /><span className="font-black text-sm uppercase">No entries found</span></div>)
+                     <div className="space-y-16">
+                         {seriesList.length > 0 ? (
+                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-10">
+                                 {seriesList.map((series) => (
+                                     <DiziCard key={series.id} series={series} onAddToWatchlist={handleAddToWatchlist} onClick={() => handleSeriesClick(series.id)} />
+                                 ))}
+                             </div>
+                         ) : (
+                             <div className="text-center py-32 text-gray-600 border border-white/5 rounded-[2.5rem] bg-navy-800/30 flex flex-col items-center gap-4">
+                                 <Search className="w-16 h-16 opacity-10" />
+                                 <span className="font-black text-sm uppercase">No entries found</span>
+                             </div>
+                         )}
+
+                         {totalPages > 1 && (
+                             <div className="flex justify-center items-center gap-2 pt-12 pb-24">
+                                 <button 
+                                     onClick={() => handlePageChange(currentPage - 1)}
+                                     disabled={currentPage === 1}
+                                     className="w-10 h-10 rounded-full bg-navy-800 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-purple disabled:opacity-30 disabled:hover:text-gray-400 transition-all"
+                                 >
+                                     <ChevronLeft className="w-5 h-5" />
+                                 </button>
+                                 
+                                 {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                                     let pageNum = currentPage <= 3 ? i + 1 : (currentPage >= totalPages - 2 ? totalPages - 4 + i : currentPage - 2 + i);
+                                     if (pageNum <= 0) pageNum = i + 1;
+                                     if (pageNum > totalPages) return null;
+                                     
+                                     return (
+                                         <button 
+                                             key={pageNum}
+                                             onClick={() => handlePageChange(pageNum)}
+                                             className={`w-10 h-10 rounded-full font-black text-xs transition-all border ${currentPage === pageNum ? 'bg-purple text-white border-purple shadow-lg shadow-purple/20' : 'bg-navy-800 text-gray-400 border-white/10 hover:text-white hover:border-purple'}`}
+                                         >
+                                             {pageNum}
+                                         </button>
+                                     );
+                                 })}
+                                 
+                                 <button 
+                                     onClick={() => handlePageChange(currentPage + 1)}
+                                     disabled={currentPage === totalPages}
+                                     className="w-10 h-10 rounded-full bg-navy-800 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-purple disabled:opacity-30 transition-all"
+                                 >
+                                     <ChevronRight className="w-5 h-5" />
+                                 </button>
+                             </div>
+                         )}
+                     </div>
                 )}
                 {!searchQuery && !isBrowsing && (<div className="space-y-24 mt-24">{CATEGORIES.map((cat, idx) => (<CategoryRow key={idx} title={cat.title} endpoint={cat.endpoint} params={cat.params} onSeriesClick={handleSeriesClick} onAddToWatchlist={handleAddToWatchlist} onViewAll={() => handleBrowse(cat.title, cat.endpoint, cat.params)} />))}</div>)}
               </section>

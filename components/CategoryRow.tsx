@@ -27,12 +27,14 @@ export const CategoryRow: React.FC<CategoryRowProps> = ({ title, endpoint, param
                 const initialData = await tmdb.getDiscoveryContent(endpoint, params);
                 
                 if (isMounted) {
-                    setSeries(initialData);
+                    // Fix: initialData contains { results: Series[], total_pages: number }. Extract results.
+                    setSeries(initialData.results);
                     setLoading(false);
                 }
 
                 // 2. Progressive Enrichment (in background)
-                const enrichedData = await tmdb.enrichSeries(initialData);
+                // Fix: enrichSeries expects Series[], extract results from initialData.
+                const enrichedData = await tmdb.enrichSeries(initialData.results);
                 if (isMounted) {
                     setSeries(enrichedData);
                 }

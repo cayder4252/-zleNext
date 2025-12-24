@@ -148,7 +148,6 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
   })) : [];
 
   return {
-    // Standardize ID to prevent collisions between TV and Movie IDs in Firestore
     id: `${type}_${item.id}`,
     media_type: type,
     title_tr: title || 'Untitled',
@@ -201,23 +200,24 @@ export const tmdb = {
     }
   },
 
-  search: async (query: string): Promise<Series[]> => {
-    if (!IS_ENABLED) return [];
+  search: async (query: string, page: number = 1): Promise<{ results: Series[], total_pages: number }> => {
+    if (!IS_ENABLED) return { results: [], total_pages: 0 };
     try {
-      const response = await fetch(`${BASE_URL}/search/multi?api_key=${API_KEY}&query=${encodeURIComponent(query)}`);
+      const response = await fetch(`${BASE_URL}/search/multi?api_key=${API_KEY}&query=${encodeURIComponent(query)}&page=${page}`);
       const data = await response.json();
-      const results = data.results.filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
-      return results.map(mapTmdbToSeries);
+      const results = (data.results || [])
+        .filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv')
+        .map(mapTmdbToSeries);
+      return { results, total_pages: data.total_pages || 1 };
     } catch (error) {
       console.error("Error searching:", error);
-      return [];
+      return { results: [], total_pages: 0 };
     }
   },
 
   getDetails: async (id: string, type: 'movie' | 'tv' = 'tv'): Promise<{ series: Series, cast: Actor[] }> => {
     if (!IS_ENABLED) throw new Error("TMDb is disabled");
     try {
-      // Strip prefix if present (Internal ID is type_id)
       const rawId = id.includes('_') ? id.split('_')[1] : id;
       const response = await fetch(`${BASE_URL}/${type}/${rawId}?api_key=${API_KEY}&append_to_response=credits,videos,reviews,seasons,external_ids`);
       const data = await response.json();
@@ -300,25 +300,25 @@ export const tmdb = {
     }
   },
 
-  getDiscoveryContent: async (endpoint: string, params: string): Promise<Series[]> => {
-    if (!IS_ENABLED) return [];
+  getDiscoveryContent: async (endpoint: string, params: string, page: number = 1): Promise<{ results: Series[], total_pages: number }> => {
+    if (!IS_ENABLED) return { results: [], total_pages: 0 };
     try {
-        const response = await fetch(`${BASE_URL}/${endpoint}?api_key=${API_KEY}&${params}`);
+        const response = await fetch(`${BASE_URL}/${endpoint}?api_key=${API_KEY}&${params}&page=${page}`);
         const data = await response.json();
-        if (!data.results) return [];
-        // Extract type from endpoint (e.g., discover/movie -> movie)
+        if (!data.results) return { results: [], total_pages: 0 };
         const type = endpoint.includes('movie') ? 'movie' : 'tv';
-        return data.results.map((item: any) => mapTmdbToSeries({ ...item, media_type: item.media_type || type }));
+        const results = data.results.map((item: any) => mapTmdbToSeries({ ...item, media_type: item.media_type || type }));
+        return { results, total_pages: data.total_pages || 1 };
     } catch (e) {
         console.error("Discovery error:", e);
-        return [];
+        return { results: [], total_pages: 0 };
     }
   },
 
   enrichSeries: async (seriesList: Series[]): Promise<Series[]> => {
       if (!IS_ENABLED) return seriesList;
-      const itemsToEnrich = seriesList.slice(0, 6);
-      const remainingItems = seriesList.slice(6);
+      const itemsToEnrich = seriesList.slice(0, 4); // Reduced for performance
+      const remainingItems = seriesList.slice(4);
 
       const enrichedItems = await Promise.all(itemsToEnrich.map(async (item) => {
           try {
