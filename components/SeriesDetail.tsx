@@ -247,6 +247,15 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                             </div>
                             <p className="text-gray-300 leading-relaxed text-sm md:text-base">{series.synopsis}</p>
                         </section>
+                        
+                        <section>
+                            <div className="flex items-center gap-2 mb-6">
+                                <div className="w-1 h-6 bg-purple rounded-full" />
+                                <h3 className="text-white font-bold text-lg uppercase tracking-wider">Access Node Link</h3>
+                            </div>
+                            <StreamingAvailability imdbId={series.imdb_id} genres={series.genres} />
+                        </section>
+
                         {awards && (
                              <section className="bg-navy-800/50 p-6 rounded-xl border border-white/10 flex items-start gap-5">
                                 <Trophy className="w-10 h-10 text-[#F5C518] flex-shrink-0" />
@@ -393,7 +402,6 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                            <InfoRow label="Network" value={series.network} />
                        </div>
                   </div>
-                  <StreamingAvailability imdbId={series.imdb_id} genres={series.genres} />
               </div>
           </div>
       </div>
