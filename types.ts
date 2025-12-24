@@ -17,6 +17,7 @@ export interface Series {
   // Detailed Fields
   release_year?: number;
   genres?: string[];
+  original_language?: string; // New field for language-specific routing
   schedule?: string;
   runtime?: string;
   trailer_url?: string;

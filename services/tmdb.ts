@@ -21,6 +21,7 @@ interface TmdbItem {
   name?: string;
   original_title?: string;
   original_name?: string;
+  original_language?: string;
   overview: string;
   poster_path: string | null;
   backdrop_path: string | null;
@@ -152,6 +153,7 @@ const mapTmdbToSeries = (item: TmdbItem | TmdbDetail): Series => {
     media_type: type,
     title_tr: title || 'Untitled',
     title_en: originalTitle || 'Untitled',
+    original_language: item.original_language,
     synopsis: item.overview || 'No synopsis available.',
     status: detailedItem.status === 'Ended' || detailedItem.status === 'Canceled' ? 'Ended' : 'Airing',
     network: network,

@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart, Clock, Trash2, History, Mail, Phone, MapPin } from 'lucide-react';
+// Added Skull to the list of icons imported from lucide-react
+import { Search, Bell, User as UserIcon, Menu, X, PlayCircle, LogOut, LogIn, ChevronDown, Zap, Rocket, Calendar, Newspaper, Activity, AlertCircle, Heart, Clock, Trash2, History, Mail, Phone, MapPin, Globe, Film, Tv, Flame, Ghost, Smile, Swords, Skull } from 'lucide-react';
 import { ViewState, User, SiteConfig } from '../types';
 import { settingsService, DEFAULT_CONFIG } from '../services/settingsService';
 
@@ -45,12 +46,10 @@ export const Layout: React.FC<LayoutProps> = ({
   useEffect(() => {
     const unsub = settingsService.subscribeToConfig((config) => {
       setSiteConfig(config);
-      setLogoError(false); // Reset error state on config change
+      setLogoError(false); 
       
-      // Update Browser Tab Title with the new slogan
       document.title = `${config.siteName}${config.siteNamePart2} - Every Story, Tracked.`;
       
-      // Update Dynamic Favicon
       const favicon = document.getElementById('dynamic-favicon') as HTMLLinkElement;
       if (favicon && config.logoUrl) {
         favicon.href = config.logoUrl;
@@ -127,22 +126,13 @@ export const Layout: React.FC<LayoutProps> = ({
       localStorage.removeItem('searchHistory');
   };
 
-  const GENRES_LEFT = [
-      { name: 'Action & Adventure', id: 10759 },
-      { name: 'Animation', id: 16 },
-      { name: 'Comedy', id: 35 },
-      { name: 'Crime', id: 80 },
-      { name: 'Drama', id: 18 },
-      { name: 'Family', id: 10751 },
-  ];
-
-  const GENRES_RIGHT = [
-      { name: 'Mystery', id: 9648 },
-      { name: 'Reality', id: 10764 },
-      { name: 'Sci-Fi & Fantasy', id: 10765 },
-      { name: 'Soap', id: 10766 },
-      { name: 'War & Politics', id: 10768 },
-      { name: 'Western', id: 37 },
+  const GLOBAL_NATIONS = [
+      { name: 'Turkish Dramas', code: 'tr', flag: '🇹🇷' },
+      { name: 'Korean Wave', code: 'ko', flag: '🇰🇷' },
+      { name: 'Indian (Hindi)', code: 'hi', flag: '🇮🇳' },
+      { name: 'Japanese Live', code: 'ja', flag: '🇯🇵' },
+      { name: 'Chinese Hits', code: 'zh', flag: '🇨🇳' },
+      { name: 'Filipino Stars', code: 'tl', flag: '🇵🇭' },
   ];
 
   return (
@@ -175,55 +165,84 @@ export const Layout: React.FC<LayoutProps> = ({
                   </button>
 
                   {isStartMenuOpen && (
-                      <div className="absolute top-full left-0 mt-4 w-[85vw] max-w-[900px] bg-navy-800/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-8 grid grid-cols-4 gap-8 animate-in fade-in slide-in-from-top-2 z-50 ring-1 ring-black/50">
+                      <div className="absolute top-full left-0 mt-4 w-[85vw] max-w-[950px] bg-navy-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 grid grid-cols-4 gap-8 animate-in fade-in slide-in-from-top-2 z-50 ring-1 ring-black/50">
+                          {/* Col 1: Discovery */}
                           <div className="space-y-6 border-r border-white/5 pr-6">
-                              <h3 className="text-purple font-bold border-b border-purple/30 pb-2 mb-4 inline-block text-sm uppercase tracking-wider">TV Shows</h3>
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">Global Discovery</h3>
                               <ul className="space-y-4">
-                                  <li onClick={() => handleCategoryClick('Trending TV Shows', 'trending/tv/day', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                  <li onClick={() => handleCategoryClick('Trending Now', 'trending/tv/day', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
                                       <Zap className="w-4 h-4 text-yellow-500 group-hover:scale-110 transition-transform" />
-                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Trending TV Shows</span>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Trending Now</span>
                                   </li>
-                                  <li onClick={() => handleCategoryClick('Most Popular', 'tv/popular', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                  <li onClick={() => handleCategoryClick('All Time Popular', 'tv/popular', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
                                       <Rocket className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
-                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Most Popular TV Shows</span>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Most Popular</span>
                                   </li>
-                                  <li onClick={() => handleCategoryClick('Newest Shows', 'tv/on_the_air', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <span className="w-4 h-4 flex items-center justify-center font-bold text-[9px] bg-blue-500 text-white rounded group-hover:scale-110 transition-transform">NEW</span>
-                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Newest TV Shows</span>
+                                  <li onClick={() => handleCategoryClick('New on Air', 'tv/on_the_air', '')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <Flame className="w-4 h-4 text-orange-500 group-hover:scale-110 transition-transform" />
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">New Releases</span>
                                   </li>
-                                  <li onClick={() => handleCategoryClick('Upcoming Shows', 'discover/tv', 'first_air_date.gte=2024-12-01&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
-                                      <Calendar className="w-4 h-4 text-green-500 group-hover:scale-110 transition-transform" />
-                                      <span className="text-sm font-medium group-hover:translate-x-1 transition-transform">Upcoming TV Shows</span>
+                                  <li onClick={() => handleCategoryClick('Adult Series', 'discover/tv', 'include_adult=true&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <Skull className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Adults 18+</span>
                                   </li>
                               </ul>
                               <div className="h-px bg-white/5 my-4" />
-                              <button onClick={() => handleCategoryClick('Explore All Shows', 'discover/tv', 'sort_by=popularity.desc')} className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold py-2.5 rounded-lg mt-2 transition-all shadow-lg shadow-red-900/20 text-xs tracking-wide">
-                                  EXPLORE SHOWS
+                              <button onClick={() => handleCategoryClick('Explore All Shows', 'discover/tv', 'sort_by=popularity.desc')} className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black py-3 rounded-xl mt-2 transition-all shadow-lg shadow-red-900/20 text-[10px] tracking-[0.2em] uppercase">
+                                  EXPLORE ALL
                               </button>
                           </div>
-                          <div>
-                              <h3 className="text-purple font-bold border-b border-purple/30 pb-2 mb-4 inline-block text-sm uppercase tracking-wider">Top Genres</h3>
-                              <ul className="space-y-2">
-                                  {GENRES_LEFT.map(g => (
-                                      <li key={g.name} onClick={() => handleGenreClick(g.name, g.id)} className="text-gray-400 hover:text-white cursor-pointer text-sm transition-colors hover:translate-x-1 duration-200">{g.name}</li>
+
+                          {/* Col 2: Nations */}
+                          <div className="space-y-6 border-r border-white/5 pr-6">
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">By Nations</h3>
+                              <ul className="space-y-2.5">
+                                  {GLOBAL_NATIONS.map(nation => (
+                                      <li key={nation.code} onClick={() => handleCategoryClick(nation.name, 'discover/tv', `with_original_language=${nation.code}&sort_by=popularity.desc`)} className="flex items-center justify-between text-gray-400 hover:text-white cursor-pointer text-sm font-medium transition-all hover:translate-x-1 group">
+                                          <div className="flex items-center gap-3">
+                                              <span className="text-lg opacity-80 group-hover:opacity-100">{nation.flag}</span>
+                                              <span>{nation.name}</span>
+                                          </div>
+                                          <ChevronDown className="w-3 h-3 -rotate-90 opacity-0 group-hover:opacity-50" />
+                                      </li>
                                   ))}
                               </ul>
                           </div>
-                          <div className="pt-10"> 
-                              <ul className="space-y-2">
-                                  {GENRES_RIGHT.map(g => (
-                                      <li key={g.name} onClick={() => handleGenreClick(g.name, g.id)} className="text-gray-400 hover:text-white cursor-pointer text-sm transition-colors hover:translate-x-1 duration-200">{g.name}</li>
-                                  ))}
+
+                          {/* Col 3: Anime & Genres */}
+                          <div className="space-y-6">
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">Anime & Specials</h3>
+                              <ul className="space-y-4">
+                                  <li onClick={() => handleCategoryClick('Anime Collection', 'discover/tv', 'with_genres=16&with_original_language=ja&sort_by=popularity.desc')} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <div className="w-7 h-7 bg-pink-500/20 rounded flex items-center justify-center group-hover:bg-pink-500/40 transition-colors">
+                                          <Smile className="w-4 h-4 text-pink-500" />
+                                      </div>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Anime Library</span>
+                                  </li>
+                                  <li onClick={() => handleGenreClick('Action & Epic', 10759)} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <div className="w-7 h-7 bg-blue-500/20 rounded flex items-center justify-center group-hover:bg-blue-500/40 transition-colors">
+                                          <Swords className="w-4 h-4 text-blue-500" />
+                                      </div>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Action & Epic</span>
+                                  </li>
+                                  <li onClick={() => handleGenreClick('Supernatural', 10765)} className="flex items-center gap-3 text-gray-300 hover:text-white cursor-pointer group">
+                                      <div className="w-7 h-7 bg-purple/20 rounded flex items-center justify-center group-hover:bg-purple/40 transition-colors">
+                                          <Ghost className="w-4 h-4 text-purple" />
+                                      </div>
+                                      <span className="text-sm font-bold group-hover:translate-x-1 transition-transform">Supernatural</span>
+                                  </li>
                               </ul>
                           </div>
-                           <div className="border-l border-white/5 pl-6">
-                              <h3 className="text-purple font-bold border-b border-purple/30 pb-2 mb-4 inline-block text-sm uppercase tracking-wider">Quick Links</h3>
+
+                          {/* Col 4: Quick Links */}
+                          <div className="border-l border-white/5 pl-6">
+                              <h3 className="text-purple font-black border-l-4 border-purple pl-3 mb-4 inline-block text-[11px] uppercase tracking-widest">Quick Access</h3>
                               <ul className="space-y-3">
                                   {[
                                       {label: 'Curated For You', icon: <Heart className="w-3.5 h-3.5 text-pink-500" />, action: () => handleCategoryClick('Curated For You', 'tv/top_rated', '')},
                                       {label: 'Cancellation Buzz', icon: <AlertCircle className="w-3.5 h-3.5 text-orange-500" />, action: () => handleCategoryClick('Cancellation Buzz', 'discover/tv', 'vote_average.lte=6&sort_by=popularity.desc')},
                                   ].map((link, i) => (
-                                      <li key={i} onClick={link.action} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group">
+                                      <li key={i} onClick={link.action} className="flex items-center gap-3 text-gray-400 hover:text-white cursor-pointer text-sm group font-medium">
                                           <span className="opacity-70 group-hover:opacity-100 transition-opacity">{link.icon}</span>
                                           <span>{link.label}</span>
                                       </li>
@@ -232,7 +251,7 @@ export const Layout: React.FC<LayoutProps> = ({
                               <div className="flex gap-2 mt-auto pt-8">
                                   {['twitter', 'instagram', 'facebook', 'youtube'].map(social => (
                                     siteConfig.socialLinks[social as keyof typeof siteConfig.socialLinks] && (
-                                      <a key={social} href={siteConfig.socialLinks[social as keyof typeof siteConfig.socialLinks]} target="_blank" className="w-8 h-8 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center cursor-pointer transition-colors text-[10px] font-bold text-gray-400 hover:text-white border border-white/5 uppercase">
+                                      <a key={social} href={siteConfig.socialLinks[social as keyof typeof siteConfig.socialLinks]} target="_blank" className="w-8 h-8 bg-white/5 hover:bg-white/10 rounded-lg flex items-center justify-center cursor-pointer transition-colors text-[10px] font-black text-gray-400 hover:text-white border border-white/5 uppercase">
                                           {social.charAt(0)}
                                       </a>
                                     )
@@ -249,7 +268,7 @@ export const Layout: React.FC<LayoutProps> = ({
             <input
               type="text"
               placeholder="Search series, actors..."
-              className="relative w-full bg-navy-800/80 border border-white/10 text-white px-5 py-2.5 pl-11 pr-10 rounded-full focus:outline-none focus:border-purple/50 focus:bg-navy-800 transition-all text-sm placeholder:text-gray-500"
+              className="relative w-full bg-navy-800/80 border border-white/10 text-white px-5 py-2.5 pl-11 pr-10 rounded-full focus:outline-none focus:border-purple/50 focus:bg-navy-800 transition-all text-sm placeholder:text-gray-500 font-medium"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setIsSearchFocused(true)}
@@ -262,13 +281,13 @@ export const Layout: React.FC<LayoutProps> = ({
             )}
             {isSearchFocused && !searchQuery && recentSearches.length > 0 && (
                 <div className="absolute top-full left-4 right-4 bg-navy-800/95 backdrop-blur-xl border border-white/10 rounded-xl mt-3 py-2 shadow-2xl overflow-hidden ring-1 ring-black/50" onMouseDown={(e) => e.preventDefault()}>
-                    <div className="flex justify-between items-center px-4 py-2 text-[10px] text-gray-500 uppercase font-bold border-b border-white/5 tracking-wider">
+                    <div className="flex justify-between items-center px-4 py-2 text-[10px] text-gray-500 uppercase font-black border-b border-white/5 tracking-wider">
                         <span className="flex items-center gap-1.5"><History className="w-3 h-3" /> Recent History</span>
                         <button onClick={clearHistory} className="hover:text-red-400 transition-colors">Clear All</button>
                     </div>
                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                         {recentSearches.map((term, idx) => (
-                            <div key={idx} onClick={() => handleRecentClick(term)} className="flex items-center justify-between px-4 py-3 hover:bg-white/5 cursor-pointer text-sm text-gray-300 hover:text-white transition-colors group/item">
+                            <div key={idx} onClick={() => handleRecentClick(term)} className="flex items-center justify-between px-4 py-3 hover:bg-white/5 cursor-pointer text-sm text-gray-300 hover:text-white transition-colors group/item font-medium">
                                 <span className="flex items-center gap-3"><Clock className="w-3.5 h-3.5 text-purple/50 group-hover/item:text-purple transition-colors" />{term}</span>
                                 <button onClick={(e) => deleteRecent(e, term)} className="text-gray-600 hover:text-red-400 p-1.5 rounded-md hover:bg-white/5 opacity-0 group-hover/item:opacity-100 transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
@@ -280,7 +299,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
           <nav className="hidden md:flex items-center gap-2 lg:gap-6">
             {navItems.map((item) => (
-              <button key={item.label} onClick={() => onChangeView(item.view)} className={`text-sm font-semibold transition-colors px-3 py-1.5 rounded-full hover:bg-white/5 ${currentView === item.view ? 'text-purple' : 'text-gray-300 hover:text-white'}`}>{item.label}</button>
+              <button key={item.label} onClick={() => onChangeView(item.view)} className={`text-xs font-black uppercase tracking-widest transition-all px-4 py-2 rounded-full hover:bg-white/5 ${currentView === item.view ? 'text-purple bg-purple/5' : 'text-gray-400 hover:text-white'}`}>{item.label}</button>
             ))}
             <div className="h-6 w-px bg-white/10 mx-2" />
             {user ? (
@@ -292,15 +311,15 @@ export const Layout: React.FC<LayoutProps> = ({
                     ) : (
                         <div className="w-7 h-7 bg-purple rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-inner">{user.name.charAt(0).toUpperCase()}</div>
                     )}
-                    <span className="text-xs font-semibold max-w-[80px] truncate hidden xl:block">{user.name}</span>
+                    <span className="text-xs font-bold max-w-[80px] truncate hidden xl:block">{user.name}</span>
                 </button>
                 {user.role === 'ADMIN' && (
-                  <button onClick={() => onChangeView('ADMIN')} className={`text-[10px] font-bold px-2 py-1 bg-navy-800 rounded border border-white/10 hover:bg-navy-700 hover:border-purple/50 transition-all ml-2 ${currentView === 'ADMIN' ? 'border-purple text-purple' : 'text-gray-400'}`}>ADMIN</button>
+                  <button onClick={() => onChangeView('ADMIN')} className={`text-[9px] font-black tracking-widest px-2 py-1 bg-navy-800 rounded border border-white/10 hover:bg-navy-700 hover:border-purple/50 transition-all ml-2 uppercase ${currentView === 'ADMIN' ? 'border-purple text-purple' : 'text-gray-400'}`}>ADMIN</button>
                 )}
                 <button onClick={onLogout} title="Logout" className="text-gray-400 hover:text-red-400 transition-colors ml-2 p-2 rounded-full hover:bg-white/5"><LogOut className="w-5 h-5" /></button>
               </>
             ) : (
-              <button onClick={() => onChangeView('LOGIN')} className="flex items-center gap-2 bg-white text-navy-900 hover:bg-gray-100 px-5 py-2 rounded-full transition-all text-sm font-bold shadow-lg shadow-white/5">
+              <button onClick={() => onChangeView('LOGIN')} className="flex items-center gap-2 bg-white text-navy-900 hover:bg-gray-100 px-6 py-2.5 rounded-full transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-white/5">
                 <LogIn className="w-4 h-4" />Login
               </button>
             )}
@@ -316,19 +335,19 @@ export const Layout: React.FC<LayoutProps> = ({
             <div className="absolute inset-0 bg-navy-900/95 backdrop-blur-xl" ref={mobileMenuRef} />
             <div className="relative flex-1 overflow-y-auto p-4 space-y-6">
                <div className="relative">
-                <input type="text" placeholder="Search..." className="w-full bg-navy-800 border border-white/10 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-base placeholder:text-gray-500" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={handleSearchKeyDown} autoFocus />
+                <input type="text" placeholder="Search..." className="w-full bg-navy-800 border border-white/10 text-white px-10 py-3 rounded-xl focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple/50 transition-all text-base placeholder:text-gray-500 font-medium" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={handleSearchKeyDown} autoFocus />
                 <Search className="absolute left-3.5 top-3.5 w-5 h-5 text-gray-500" />
                  {searchQuery && (<button onClick={() => setSearchQuery('')} className="absolute right-3 top-3 p-1 text-gray-400 bg-white/5 rounded-full"><X className="w-4 h-4" /></button>)}
                  {!searchQuery && recentSearches.length > 0 && (
                     <div className="mt-4 animate-in fade-in slide-in-from-top-2">
                         <div className="flex justify-between items-center px-1 mb-2">
-                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><History className="w-3 h-3" /> Recent Searches</h4>
+                            <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><History className="w-3 h-3" /> Recent Searches</h4>
                             <button onClick={clearHistory} className="text-xs text-red-400 font-medium px-2 py-1 rounded hover:bg-white/5">Clear All</button>
                         </div>
                         <div className="space-y-1">
                             {recentSearches.slice(0, 5).map((term, idx) => (
                                 <div key={idx} onClick={() => { handleRecentClick(term); setIsMobileMenuOpen(false); }} className="flex justify-between items-center p-3 bg-navy-800/50 border border-white/5 rounded-lg active:bg-white/10 active:scale-[0.98] transition-all">
-                                    <span className="flex items-center gap-3 text-gray-200 text-sm"><Clock className="w-4 h-4 text-purple" /> {term}</span>
+                                    <span className="flex items-center gap-3 text-gray-200 text-sm font-medium"><Clock className="w-4 h-4 text-purple" /> {term}</span>
                                     <button onClick={(e) => deleteRecent(e, term)} className="p-2 -mr-2 text-gray-500 active:text-red-400"><X className="w-4 h-4" /></button>
                                 </div>
                             ))}
@@ -338,7 +357,7 @@ export const Layout: React.FC<LayoutProps> = ({
                </div>
               <div className="space-y-1">
                   {navItems.map((item) => (
-                    <button key={item.label} onClick={() => { onChangeView(item.view); setIsMobileMenuOpen(false); }} className={`w-full text-left p-4 rounded-xl font-bold text-lg flex justify-between items-center transition-all active:scale-[0.98] ${currentView === item.view ? 'bg-purple text-white shadow-lg shadow-purple/20' : 'bg-navy-800 text-gray-300 hover:bg-navy-700'}`}>
+                    <button key={item.label} onClick={() => { onChangeView(item.view); setIsMobileMenuOpen(false); }} className={`w-full text-left p-4 rounded-xl font-black text-lg flex justify-between items-center transition-all active:scale-[0.98] uppercase tracking-tighter ${currentView === item.view ? 'bg-purple text-white shadow-lg shadow-purple/20' : 'bg-navy-800 text-gray-300 hover:bg-navy-700'}`}>
                       {item.label}<ChevronDown className={`w-5 h-5 -rotate-90 ${currentView === item.view ? 'text-white' : 'text-gray-600'}`} />
                     </button>
                   ))}
@@ -348,13 +367,13 @@ export const Layout: React.FC<LayoutProps> = ({
                     <div className="space-y-3">
                        <button onClick={() => { onChangeView('PROFILE'); setIsMobileMenuOpen(false); }} className="w-full bg-navy-800 p-4 rounded-xl flex items-center gap-4 border border-white/5 active:bg-navy-700 transition-colors">
                          {user.avatar_url ? (<img src={user.avatar_url} alt="Profile" className="w-10 h-10 rounded-full object-cover border border-purple" />) : (<div className="w-10 h-10 rounded-full bg-purple flex items-center justify-center font-bold text-white">{user.name.charAt(0)}</div>)}
-                         <div className="text-left"><div className="font-bold text-white">{user.name}</div><div className="text-xs text-gray-400">View Profile</div></div>
+                         <div className="text-left"><div className="font-black text-white uppercase">{user.name}</div><div className="text-[10px] text-gray-400 uppercase tracking-widest">View Profile</div></div>
                          <ChevronDown className="w-5 h-5 -rotate-90 ml-auto text-gray-500" />
                       </button>
-                      <button onClick={() => { onLogout(); setIsMobileMenuOpen(false); }} className="w-full text-center text-red-400 font-semibold py-3 flex items-center justify-center gap-2 hover:bg-white/5 rounded-xl transition-colors"><LogOut className="w-4 h-4" /> Sign Out</button>
+                      <button onClick={() => { onLogout(); setIsMobileMenuOpen(false); }} className="w-full text-center text-red-400 font-black py-3 flex items-center justify-center gap-2 hover:bg-white/5 rounded-xl transition-all uppercase text-xs tracking-[0.2em]"><LogOut className="w-4 h-4" /> Sign Out</button>
                     </div>
                   ) : (
-                    <button onClick={() => { onChangeView('LOGIN'); setIsMobileMenuOpen(false); }} className="w-full bg-white text-navy-900 font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform"><LogIn className="w-5 h-5" /> Login / Register</button>
+                    <button onClick={() => { onChangeView('LOGIN'); setIsMobileMenuOpen(false); }} className="w-full bg-white text-navy-900 font-black py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform uppercase text-xs tracking-[0.2em]"><LogIn className="w-5 h-5" /> Login / Register</button>
                   )}
               </div>
             </div>
@@ -380,43 +399,43 @@ export const Layout: React.FC<LayoutProps> = ({
                     <PlayCircle className="text-white w-4 h-4" fill="currentColor" />
                   </div>
                 )}
-                <span className="text-lg font-bold text-white">{siteConfig.siteName}{siteConfig.siteNamePart2}</span>
+                <span className="text-lg font-black text-white uppercase tracking-tighter">{siteConfig.siteName}{siteConfig.siteNamePart2}</span>
               </div>
-              <p className="text-gray-400 text-sm leading-relaxed">The ultimate destination for Drama enthusiasts. Track your shows and discover the next big hit.</p>
+              <p className="text-gray-400 text-sm leading-relaxed font-medium">The ultimate destination for Drama enthusiasts. Track your shows and discover the next big hit.</p>
               <div className="flex flex-col gap-2 pt-2">
-                <div className="flex items-center gap-3 text-xs text-gray-500"><Mail className="w-3.5 h-3.5 text-purple" /> {siteConfig.contactEmail}</div>
-                <div className="flex items-center gap-3 text-xs text-gray-500"><Phone className="w-3.5 h-3.5 text-purple" /> {siteConfig.contactPhone}</div>
-                <div className="flex items-center gap-3 text-xs text-gray-500"><MapPin className="w-3.5 h-3.5 text-purple" /> {siteConfig.address}</div>
+                <div className="flex items-center gap-3 text-[10px] font-black text-gray-500 uppercase tracking-widest"><Mail className="w-3.5 h-3.5 text-purple" /> {siteConfig.contactEmail}</div>
+                <div className="flex items-center gap-3 text-[10px] font-black text-gray-500 uppercase tracking-widest"><Phone className="w-3.5 h-3.5 text-purple" /> {siteConfig.contactPhone}</div>
+                <div className="flex items-center gap-3 text-[10px] font-black text-gray-500 uppercase tracking-widest"><MapPin className="w-3.5 h-3.5 text-purple" /> {siteConfig.address}</div>
               </div>
             </div>
             <div>
-              <h3 className="text-white font-bold mb-4">Discover</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
+              <h3 className="text-white font-black text-xs uppercase tracking-[0.3em] mb-6">Discover</h3>
+              <ul className="space-y-3 text-sm text-gray-400 font-medium">
                 <li><a href="#" className="hover:text-purple transition-colors">Trending Shows</a></li>
                 <li><a href="#" className="hover:text-purple transition-colors">New Releases</a></li>
                 <li><a href="#" className="hover:text-purple transition-colors">Calendar</a></li>
               </ul>
             </div>
              <div>
-              <h3 className="text-white font-bold mb-4">Legal</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
+              <h3 className="text-white font-black text-xs uppercase tracking-[0.3em] mb-6">Legal</h3>
+              <ul className="space-y-3 text-sm text-gray-400 font-medium">
                 <li><a href="#" className="hover:text-purple transition-colors">Terms of Service</a></li>
                 <li><a href="#" className="hover:text-purple transition-colors">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-purple transition-colors">DMCA</a></li>
               </ul>
             </div>
              <div>
-              <h3 className="text-white font-bold mb-4">Social Presence</h3>
-              <div className="flex gap-4">
+              <h3 className="text-white font-black text-xs uppercase tracking-[0.3em] mb-6">Social</h3>
+              <div className="flex flex-wrap gap-3">
                  {Object.entries(siteConfig.socialLinks).map(([name, url]) => url && (
-                   <a key={name} href={url} target="_blank" className="p-2 bg-navy-900 rounded-lg hover:bg-purple/20 border border-white/5 transition-colors group">
-                     <span className="text-gray-400 group-hover:text-white capitalize text-xs">{name}</span>
+                   <a key={name} href={url} target="_blank" className="px-4 py-2 bg-navy-900 rounded-xl hover:bg-purple/20 border border-white/5 transition-all group">
+                     <span className="text-gray-400 group-hover:text-white capitalize text-[10px] font-black uppercase tracking-widest">{name}</span>
                    </a>
                  ))}
               </div>
             </div>
           </div>
-          <div className="border-t border-white/5 pt-8 text-center text-gray-500 text-sm">© 2025 {siteConfig.siteName}{siteConfig.siteNamePart2} Media. All rights reserved.</div>
+          <div className="border-t border-white/5 pt-8 text-center text-gray-500 text-[10px] font-black uppercase tracking-[0.4em]">© 2025 {siteConfig.siteName}{siteConfig.siteNamePart2} Media. Every Story, Tracked.</div>
         </div>
       </footer>
     </div>

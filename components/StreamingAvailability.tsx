@@ -6,9 +6,10 @@ import { Tv, ExternalLink, Loader2, Zap, PlayCircle, Globe, ShieldCheck, Cpu, Ra
 interface StreamingAvailabilityProps {
     imdbId?: string;
     genres?: string[];
+    originalLanguage?: string;
 }
 
-export const StreamingAvailability: React.FC<StreamingAvailabilityProps> = ({ imdbId, genres }) => {
+export const StreamingAvailability: React.FC<StreamingAvailabilityProps> = ({ imdbId, genres, originalLanguage }) => {
     const [sources, setSources] = useState<StreamingSource[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasChecked, setHasChecked] = useState(false);
@@ -32,6 +33,8 @@ export const StreamingAvailability: React.FC<StreamingAvailabilityProps> = ({ im
         g.toLowerCase().includes('animation') || 
         g.toLowerCase().includes('anime')
     );
+
+    const isTurkish = originalLanguage === 'tr';
 
     const communityLinks = isAnime ? [
         { name: 'NekoHD Node', url: 'https://nekohd.com', color: 'border-pink-500/30', glow: 'group-hover:shadow-pink-500/20' },
@@ -76,8 +79,27 @@ export const StreamingAvailability: React.FC<StreamingAvailabilityProps> = ({ im
                         <Loader2 className="w-8 h-8 animate-spin text-purple" />
                         <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Searching Satellites...</span>
                     </div>
-                ) : sources.length > 0 ? (
+                ) : (sources.length > 0 || isTurkish) ? (
                     <div className="grid grid-cols-1 gap-3">
+                        {/* Injected Turkish123 Link */}
+                        {isTurkish && (
+                            <a 
+                                href="http://turkish123.to/home/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-between bg-purple/10 hover:bg-purple/20 text-purple hover:text-white px-5 py-4 rounded-2xl transition-all duration-300 group border border-purple/30 active:scale-[0.98] shadow-lg shadow-purple/5"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]" />
+                                    <span className="font-black text-[11px] uppercase tracking-[0.2em]">Turkish123 Main Hub</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[8px] font-bold opacity-50 uppercase">Instant Stream</span>
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                </div>
+                            </a>
+                        )}
+
                         {sources.map((source) => (
                             <a 
                                 key={source.source_id}

@@ -253,7 +253,11 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                                 <div className="w-1 h-6 bg-purple rounded-full" />
                                 <h3 className="text-white font-bold text-lg uppercase tracking-wider">Access Node Link</h3>
                             </div>
-                            <StreamingAvailability imdbId={series.imdb_id} genres={series.genres} />
+                            <StreamingAvailability 
+                              imdbId={series.imdb_id} 
+                              genres={series.genres} 
+                              originalLanguage={series.original_language} 
+                            />
                         </section>
 
                         {awards && (
