@@ -29,8 +29,7 @@ import {
   Film,
   PenTool,
   X,
-  ThumbsUp,
-  ThumbsDown,
+  ThumbsUp, ThumbsDown,
   Send,
   Loader2,
   PlayCircle,
@@ -394,7 +393,7 @@ export const SeriesDetail: React.FC<SeriesDetailProps> = ({ series, cast, onAddT
                            <InfoRow label="Network" value={series.network} />
                        </div>
                   </div>
-                  <StreamingAvailability imdbId={series.imdb_id} />
+                  <StreamingAvailability imdbId={series.imdb_id} genres={series.genres} />
               </div>
           </div>
       </div>
