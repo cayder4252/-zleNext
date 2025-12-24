@@ -53,7 +53,8 @@ import {
     Loader2,
     Radio,
     Rss,
-    Cpu
+    Cpu,
+    ArrowRight
 } from 'lucide-react';
 
 const SERIES_CACHE_KEY = 'izlenext_series_cache';
@@ -129,7 +130,6 @@ function App() {
   useEffect(() => {
     const fetchPulseNews = async () => {
         try {
-            // Using the requested API Key and query for Dizi/Dramas
             const res = await fetch(`https://newsdata.io/api/1/news?apikey=pub_e7764909bff04a3f9bf72d384e687756&q=dizi&language=tr,en`);
             const data = await res.json();
             if (data.results) setPulseNews(data.results);
@@ -139,7 +139,7 @@ function App() {
     };
     
     fetchPulseNews();
-    const interval = setInterval(fetchPulseNews, 10000); // 10s refresh as requested
+    const interval = setInterval(fetchPulseNews, 10000); 
 
     return () => clearInterval(interval);
   }, []);
@@ -667,7 +667,6 @@ function App() {
                                 </div>
                             </div>
 
-                            {/* Live Feed Section - Optimized for 10 Simultaneous Items */}
                             <div className="flex-1 mt-6 border-t border-white/5 pt-8 overflow-hidden">
                                 <div className="flex items-center justify-between mb-4">
                                     <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.5em] flex items-center gap-2"><Rss className="w-3 h-3 text-purple" /> Live Signals</h4>
@@ -724,11 +723,66 @@ function App() {
                     <p className="text-white font-black text-2xl uppercase tracking-tighter">No Upcoming Signals</p>
                     <p className="text-gray-500 text-xs font-bold mt-2 uppercase tracking-widest">Try adjusting filters or checking back later.</p>
                 </div>) 
-                : (<div className="space-y-24 animate-in slide-in-from-bottom-10 duration-1000">{sortedDates.map((dateStr) => {
-                    const showsForDate = calendarGrouped[dateStr] || [];
-                    const formattedDate = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                    return (<div key={dateStr} className="space-y-10"><div className="flex items-center gap-8 px-6"><div className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter">{formattedDate}</div><div className="h-[2px] bg-gradient-to-r from-purple/40 to-transparent flex-1"></div><div className="text-[11px] text-gray-500 font-black uppercase tracking-[0.5em]">{showsForDate.length} PREMIERES</div></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-12 px-2">{showsForDate.map(show => (<div key={show.id} onClick={() => handleSeriesClick(show.id)} className="group relative aspect-[2/3] rounded-[2.5rem] overflow-hidden bg-navy-800 border border-white/5 cursor-pointer hover:border-purple/50 transition-all duration-700 hover:-translate-y-3 shadow-xl"><img src={show.poster_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 opacity-75 group-hover:opacity-100" alt={show.title_tr} /><div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/10 to-transparent opacity-95" /><div className="absolute bottom-0 left-0 w-full p-8 z-20"><div className="space-y-3 transform translate-y-6 group-hover:translate-y-0 transition-transform duration-700"><h3 className="text-2xl font-black text-white leading-none line-clamp-2 uppercase tracking-tighter">{show.title_tr}</h3><p className="text-[11px] text-gray-400 font-black uppercase truncate opacity-60">{show.network} • Premiere</p></div></div></div>))}</div></div>);
-                })}</div>)}
+                : (
+                    <div className="space-y-20 animate-in slide-in-from-bottom-10 duration-1000">
+                        {sortedDates.map((dateStr) => {
+                            const showsForDate = calendarGrouped[dateStr] || [];
+                            const dateObj = new Date(dateStr);
+                            const formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+                            
+                            return (
+                                <div key={dateStr} className="space-y-6">
+                                    {/* Date Header One-Liner */}
+                                    <div className="flex items-center gap-4 px-2">
+                                        <h2 className="text-xl md:text-2xl font-black text-white tracking-tighter whitespace-nowrap">{formattedDate}</h2>
+                                        <div className="h-px bg-white/10 flex-1" />
+                                        <div className="text-[9px] font-black text-gray-500 uppercase tracking-[0.4em] whitespace-nowrap">{showsForDate.length} PREMIERES</div>
+                                    </div>
+
+                                    {/* Vertical List of Shows */}
+                                    <div className="flex flex-col gap-4 px-2">
+                                        {showsForDate.map(show => (
+                                            <div 
+                                                key={show.id} 
+                                                onClick={() => handleSeriesClick(show.id)} 
+                                                className="group relative flex items-center gap-6 p-4 bg-navy-800/30 hover:bg-navy-800/60 border border-white/5 hover:border-purple/30 rounded-2xl transition-all cursor-pointer shadow-lg overflow-hidden"
+                                            >
+                                                {/* Hover Glow */}
+                                                <div className="absolute inset-0 bg-gradient-to-r from-purple/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                
+                                                {/* Compact Thumbnail */}
+                                                <div className="w-16 h-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-xl relative z-10">
+                                                    <img src={show.poster_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={show.title_tr} />
+                                                </div>
+
+                                                {/* Info Stack */}
+                                                <div className="flex-1 min-w-0 relative z-10">
+                                                    <div className="flex items-center gap-3 mb-1.5">
+                                                        <span className="text-purple font-black text-[10px] tracking-widest uppercase">20:00 Slot</span>
+                                                        <span className="w-1 h-1 bg-gray-700 rounded-full" />
+                                                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{show.network}</span>
+                                                    </div>
+                                                    <h3 className="text-lg md:text-xl font-black text-white leading-none truncate uppercase tracking-tighter group-hover:text-purple transition-colors">{show.title_tr}</h3>
+                                                    <p className="text-xs text-gray-400 font-medium line-clamp-1 mt-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                        {show.synopsis || "No description available for this premiere signal."}
+                                                    </p>
+                                                </div>
+
+                                                {/* Action Metadata */}
+                                                <div className="hidden sm:flex flex-col items-end gap-3 shrink-0 relative z-10">
+                                                    <div className="px-3 py-1 bg-purple/10 text-purple rounded-full text-[8px] font-black uppercase tracking-widest border border-purple/20">Official Premiere</div>
+                                                    <button className="flex items-center gap-2 text-[10px] font-black text-gray-500 hover:text-white transition-colors group/btn">
+                                                        TRACK SIGNAL <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         );
       case 'PROFILE':
